@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Purchase Orders{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-table"></i> All Purchase Orders</span>
+        <div class="d-flex gap-2">
+        <a href="{{ url_for('po_create') }}" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> New Contract</a>
+        <a href="{{ url_for('line_items') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-list-ul"></i> All Items</a>
+        <form class="d-flex gap-2" method="GET">
+            <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+                <option value="">All Statuses</option>
+                {% for s in all_statuses %}
+                <option value="{{ s.name }}" {{ 'selected' if status_filter == s.name }}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Search PO, tender, supplier..."
+                   value="{{ search }}" style="min-width:250px">
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+            {% if search or status_filter %}
+                <a href="{{ url_for('po_list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+            {% endif %}
+        </form>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="poTable">
+                <thead>
+                    <tr>
+                        <th class="no-sort" style="width:30px"></th>
+                        <th>#</th>
+                        <th>PO Number</th>
+                        <th>Supplier</th>
+                        <th>Items</th>
+                        <th>Total Amount</th>
+                        <th>Currency</th>
+                        <th>Budget</th>
+                        <th>Status</th>
+                        <th>Received</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for po in pos %}
+                    <tr data-po-id="{{ po.id }}">
+                        <td class="dt-control" style="text-align:center;cursor:pointer;font-size:1.2em">+</td>
+                        <td>{{ po.serial_number or '' }}</td>
+                        <td><a href="{{ url_for('po_detail', po_id=po.id) }}">{{ po.po_number or '' }}</a></td>
+                        <td>{{ po.supplier.name if po.supplier else po.supplier_name_raw }}</td>
+                        <td>{{ po.line_items.count() }}</td>
+                        <td>{{ "{:,.2f}".format(po.total_po_amount) if po.total_po_amount else '' }}</td>
+                        <td>{{ po.currency or '' }}</td>
+                        <td>{{ po.budget_source.name if po.budget_source else '' }}</td>
+                        <td>{% if po.po_status %}<span class="badge bg-info">{{ po.po_status.name }}</span>{% endif %}</td>
+                        <td>{{ po.received_date.strftime('%Y-%m-%d') if po.received_date else '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('po_list', page=pagination.prev_num, search=search) }}">Previous</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                    <li class="page-item {{ 'active' if p == pagination.page }}">
+                        <a class="page-link" href="{{ url_for('po_list', page=p, search=search) }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('po_list', page=pagination.next_num, search=search) }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#poTable tbody').on('click', 'td.dt-control', function() {
+        var tr = $(this).closest('tr');
+        var row = poTable.row(tr);
+        if (row.child.isShown()) {
+            row.child.hide();
+            tr.removeClass('shown');
+            $(this).text('+');
+        } else {
+            var poId = tr.data('po-id');
+            $.getJSON('/api/pos/' + poId + '/items', function(data) {
+                var html = '<table class="table table-sm table-borderless mb-0" style="background:#f8f9fa">' +
+                    '<thead><tr><th>Description</th><th>Unit</th><th>Quantity</th><th>Unit Price</th></tr></thead><tbody>';
+                $.each(data, function(i, item) {
+                    html += '<tr><td>' + (item.description || '') + '</td><td>' + (item.unit || '') +
+                        '</td><td>' + (item.quantity ? Number(item.quantity).toLocaleString() : '') +
+                        '</td><td>' + (item.unit_price ? Number(item.unit_price).toFixed(4) : '') + '</td></tr>';
+                });
+                html += '</tbody></table>';
+                row.child(html).show();
+                tr.addClass('shown');
+                $(this).text('-');
+            });
+        }
+    });
+    var poTable = $('#poTable').DataTable({
+        paging: false,
+        info: false,
+        order: [[1, 'desc']],
+        columnDefs: [{ orderable: false, targets: 0 }]
+    });
+});
+</script>
+{% endblock %}

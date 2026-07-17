@@ -1,0 +1,636 @@
+import os
+import sys
+from datetime import datetime, date
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy import Integer, String, Float, Date, Text, ForeignKey, func, or_
+from dateutil import parser as dateparser
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'contract-mgmt-secret-key')
+db_url = os.environ.get('DATABASE_URL', 'mysql+pymysql://root:@localhost:3306/contract_mgmt')
+if db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+class User(db.Model, UserMixin):
+    __tablename__ = 'users'
+    id = db.Column(Integer, primary_key=True)
+    username = db.Column(String(80), unique=True, nullable=False)
+    password_hash = db.Column(String(200), nullable=False)
+    is_admin = db.Column(Integer, default=0)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+class Supplier(db.Model):
+    __tablename__ = 'suppliers'
+    __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(200), nullable=False)
+    country = db.Column(String(100))
+
+class LocalAgent(db.Model):
+    __tablename__ = 'local_agents'
+    __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(200), nullable=False, unique=True)
+
+class BudgetSource(db.Model):
+    __tablename__ = 'budget_sources'
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(100), nullable=False, unique=True)
+
+class PurchaseOrder(db.Model):
+    __tablename__ = 'purchase_orders'
+    id = db.Column(Integer, primary_key=True)
+    serial_number = db.Column(Integer)
+    received_date = db.Column(Date)
+    tender_reference = db.Column(String(200))
+    po_number = db.Column(String(100), index=True)
+    supplier_id = db.Column(Integer, ForeignKey('suppliers.id'))
+    supplier_name_raw = db.Column(String(300))
+    country_raw = db.Column(String(100))
+    local_agent_id = db.Column(Integer, ForeignKey('local_agents.id'))
+    local_agent_raw = db.Column(String(300))
+    total_po_amount = db.Column(Float)
+    currency = db.Column(String(10))
+    budget_source_id = db.Column(Integer, ForeignKey('budget_sources.id'))
+    mode_of_shipment = db.Column(String(50))
+    po_transferred_date = db.Column(Date)
+    remark = db.Column(Text)
+    biofficer_id = db.Column(Integer, ForeignKey('bi_officers.id'))
+    shipment_officer_id = db.Column(Integer, ForeignKey('shipment_officers.id'))
+    status_id = db.Column(Integer, ForeignKey('po_statuses.id'))
+
+    supplier = db.relationship('Supplier', backref='orders')
+    local_agent = db.relationship('LocalAgent', backref='orders')
+    budget_source = db.relationship('BudgetSource', backref='orders')
+    biofficer = db.relationship('BIOfficer', backref='orders')
+    shipment_officer = db.relationship('ShipmentOfficer', backref='orders')
+    po_status = db.relationship('POStatus', backref='orders')
+    line_items = db.relationship('LineItem', backref='po', lazy='dynamic', cascade='all, delete-orphan')
+    performance_guarantees = db.relationship('PerformanceGuarantee', backref='po', lazy='dynamic', cascade='all, delete-orphan')
+    letter_of_credits = db.relationship('LetterOfCredit', backref='po', lazy='dynamic', cascade='all, delete-orphan')
+    shipments = db.relationship('Shipment', backref='po', lazy='dynamic', cascade='all, delete-orphan')
+
+class LineItem(db.Model):
+    __tablename__ = 'line_items'
+    id = db.Column(Integer, primary_key=True)
+    po_id = db.Column(Integer, ForeignKey('purchase_orders.id'), nullable=False)
+    description = db.Column(Text)
+    unit = db.Column(String(20))
+    quantity = db.Column(Float)
+    unit_price = db.Column(Float)
+    total_price = db.Column(Float)
+
+class PerformanceGuarantee(db.Model):
+    __tablename__ = 'performance_guarantees'
+    id = db.Column(Integer, primary_key=True)
+    po_id = db.Column(Integer, ForeignKey('purchase_orders.id'), nullable=False)
+    requested_date = db.Column(Date)
+    received_date = db.Column(Date)
+    confirmed_date = db.Column(Date)
+    bank_name = db.Column(String(200))
+    pg_reference = db.Column(String(200))
+    expiry_date = db.Column(Date)
+    remaining_days = db.Column(Integer)
+    submit_pg = db.Column(String(50))
+    status = db.Column(String(50))
+    status_date = db.Column(Date)
+    pg_receiver_name = db.Column(String(200))
+    bi_officer = db.Column(String(100))
+
+class LetterOfCredit(db.Model):
+    __tablename__ = 'letter_of_credits'
+    id = db.Column(Integer, primary_key=True)
+    po_id = db.Column(Integer, ForeignKey('purchase_orders.id'), nullable=False)
+    opening_status = db.Column(String(50))
+    opened_date = db.Column(Date)
+    expiry_date = db.Column(Date)
+    age_days = db.Column(Integer)
+
+class Shipment(db.Model):
+    __tablename__ = 'shipments'
+    id = db.Column(Integer, primary_key=True)
+    po_id = db.Column(Integer, ForeignKey('purchase_orders.id'), nullable=False)
+    shipment_officer = db.Column(String(100))
+    shipment_status = db.Column(String(100))
+    order_closure = db.Column(String(50))
+
+class BIOfficer(db.Model):
+    __tablename__ = 'bi_officers'
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(100), nullable=False, unique=True)
+
+class ShipmentOfficer(db.Model):
+    __tablename__ = 'shipment_officers'
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(100), nullable=False, unique=True)
+
+class POStatus(db.Model):
+    __tablename__ = 'po_statuses'
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(50), nullable=False, unique=True)
+
+def parse_date(val):
+    if not val or str(val).strip() in ('', 'ENTER DATE', 'NM', '#REF!'):
+        return None
+    try:
+        if isinstance(val, (int, float)):
+            from datetime import timedelta
+            base = datetime(1899, 12, 30)
+            return (base + timedelta(days=float(val))).date()
+        s = str(val).strip()
+        return dateparser.parse(s).date()
+    except:
+        return None
+
+def parse_float(val):
+    if not val:
+        return None
+    s = str(val).replace(',', '').replace(' ', '')
+    try:
+        return float(s)
+    except:
+        return None
+
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username='admin').first():
+        admin = User(username='admin', is_admin=1)
+        admin.set_password('admin')
+        db.session.add(admin)
+        db.session.commit()
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
+        flash('Invalid username or password', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/')
+@login_required
+def index():
+    total_pos = PurchaseOrder.query.count()
+    total_items = LineItem.query.count()
+    total_suppliers = Supplier.query.count()
+    total_amount = db.session.query(func.sum(PurchaseOrder.total_po_amount)).scalar() or 0
+    recent_pos = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).limit(5).all()
+    return render_template('index.html', total_pos=total_pos, total_items=total_items,
+                          total_suppliers=total_suppliers, total_amount=total_amount,
+                          recent_pos=recent_pos)
+
+@app.route('/pos')
+@login_required
+def po_list():
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    search = request.args.get('search', '').strip()
+    status_filter = request.args.get('status', '').strip()
+    budget_filter = request.args.get('budget', '').strip()
+
+    query = PurchaseOrder.query
+
+    if search:
+        q = f'%{search}%'
+        query = query.join(Supplier, PurchaseOrder.supplier_id == Supplier.id, isouter=True)
+        query = query.filter(
+            db.or_(
+                PurchaseOrder.po_number.like(q),
+                PurchaseOrder.tender_reference.like(q),
+                Supplier.name.like(q),
+                PurchaseOrder.supplier_name_raw.like(q)
+            )
+        )
+
+    if status_filter:
+        query = query.join(POStatus, PurchaseOrder.status_id == POStatus.id, isouter=True)
+        query = query.filter(POStatus.name == status_filter)
+
+    query = query.order_by(PurchaseOrder.serial_number.is_(None), PurchaseOrder.serial_number.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    pos = pagination.items
+    budget_sources = BudgetSource.query.order_by(BudgetSource.name).all()
+
+    all_statuses = POStatus.query.order_by(POStatus.name).all()
+    return render_template('po_list.html', pos=pos, pagination=pagination,
+                          search=search, budget_sources=budget_sources,
+                          all_statuses=all_statuses, status_filter=status_filter)
+
+@app.route('/pos/<int:po_id>')
+@login_required
+def po_detail(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    return render_template('po_detail.html', po=po)
+
+@app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
+@login_required
+def po_edit(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    if request.method == 'POST':
+        po.received_date = parse_date(request.form.get('received_date'))
+        po.tender_reference = request.form.get('tender_reference', '').strip()
+        po.mode_of_shipment = request.form.get('mode_of_shipment', '').strip()
+        po.po_transferred_date = parse_date(request.form.get('po_transferred_date'))
+        po.total_po_amount = parse_float(request.form.get('total_po_amount'))
+        po.currency = request.form.get('currency', '').strip()
+        po.remark = request.form.get('remark', '')
+
+        bi_name = request.form.get('bi_officer_name', '').strip()
+        if bi_name:
+            bi = BIOfficer.query.filter_by(name=bi_name).first()
+            if not bi:
+                bi = BIOfficer(name=bi_name)
+                db.session.add(bi)
+                db.session.flush()
+            po.biofficer_id = bi.id
+        else:
+            po.biofficer_id = None
+
+        sh_name = request.form.get('shipment_officer_name', '').strip()
+        if sh_name:
+            sh = ShipmentOfficer.query.filter_by(name=sh_name).first()
+            if not sh:
+                sh = ShipmentOfficer(name=sh_name)
+                db.session.add(sh)
+                db.session.flush()
+            po.shipment_officer_id = sh.id
+        else:
+            po.shipment_officer_id = None
+
+        st_name = request.form.get('po_status', '').strip()
+        if st_name:
+            st = POStatus.query.filter_by(name=st_name).first()
+            if not st:
+                st = POStatus(name=st_name)
+                db.session.add(st)
+                db.session.flush()
+            po.status_id = st.id
+        else:
+            po.status_id = None
+
+        lc = po.letter_of_credits.first()
+        lc_status = request.form.get('lc_status', '').strip()
+        if lc_status:
+            if not lc:
+                lc = LetterOfCredit(po_id=po.id)
+                db.session.add(lc)
+                db.session.flush()
+            lc.opening_status = lc_status
+            lc.opened_date = parse_date(request.form.get('lc_opened_date'))
+            lc.expiry_date = parse_date(request.form.get('lc_expiry_date'))
+
+        db.session.commit()
+        flash('PO updated', 'success')
+        return redirect(url_for('po_detail', po_id=po.id))
+    return render_template('po_edit.html', po=po,
+        bi_officers=BIOfficer.query.order_by(BIOfficer.name).all(),
+        shipment_officers=ShipmentOfficer.query.order_by(ShipmentOfficer.name).all(),
+        po_statuses=POStatus.query.order_by(POStatus.name).all())
+
+@app.route('/reports')
+@login_required
+def reports():
+    budget_data = db.session.query(
+        BudgetSource.name, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+    ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
+    ).group_by(BudgetSource.name).all()
+
+    supplier_data = db.session.query(
+        Supplier.name, func.count(PurchaseOrder.id)
+    ).join(Supplier, PurchaseOrder.supplier_id == Supplier.id, isouter=True
+    ).group_by(Supplier.name).order_by(func.count(PurchaseOrder.id).desc()).limit(20).all()
+
+    currency_data = db.session.query(
+        PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+    ).group_by(PurchaseOrder.currency).all()
+
+    return render_template('reports.html', budget_data=budget_data,
+                          supplier_data=supplier_data, currency_data=currency_data)
+
+@app.route('/api/pos')
+@login_required
+def api_pos():
+    pos = PurchaseOrder.query.order_by(PurchaseOrder.serial_number).all()
+    result = []
+    for po in pos:
+        items = [{'description': li.description, 'unit': li.unit,
+                  'quantity': li.quantity, 'unit_price': li.unit_price,
+                  'total_price': li.total_price} for li in po.line_items]
+        pgs = [{'bank_name': pg.bank_name, 'status': pg.status,
+                'requested_date': str(pg.requested_date) if pg.requested_date else None}
+               for pg in po.performance_guarantees]
+        lcs = [{'opening_status': lc.opening_status,
+                'opened_date': str(lc.opened_date) if lc.opened_date else None}
+               for lc in po.letter_of_credits]
+        result.append({
+            'id': po.id, 'serial': po.serial_number, 'po_number': po.po_number,
+            'supplier': po.supplier.name if po.supplier else po.supplier_name_raw,
+            'total_amount': po.total_po_amount, 'currency': po.currency,
+            'line_items': items, 'pgs': pgs, 'lcs': lcs
+        })
+    return jsonify(result)
+
+@app.route('/pos/new', methods=['GET', 'POST'])
+@login_required
+def po_create():
+    if request.method == 'POST':
+        po_number = request.form.get('po_number', '').strip()
+        if not po_number:
+            flash('PO Number is required', 'danger')
+            return render_template('po_create.html',
+                suppliers=Supplier.query.order_by(Supplier.name).all(),
+                agents=LocalAgent.query.order_by(LocalAgent.name).all(),
+                budgets=BudgetSource.query.order_by(BudgetSource.name).all())
+
+        supplier_name = request.form.get('supplier_name', '').strip()
+        supplier_country = request.form.get('supplier_country', '').strip()
+        local_agent_name = request.form.get('local_agent_name', '').strip()
+        budget_name = request.form.get('budget_source', '').strip()
+
+        supplier = None
+        if supplier_name:
+            supplier = Supplier.query.filter_by(name=supplier_name).first()
+            if not supplier:
+                supplier = Supplier(name=supplier_name, country=supplier_country)
+                db.session.add(supplier)
+                db.session.flush()
+
+        local_agent = None
+        if local_agent_name:
+            local_agent = LocalAgent.query.filter_by(name=local_agent_name).first()
+            if not local_agent:
+                local_agent = LocalAgent(name=local_agent_name)
+                db.session.add(local_agent)
+                db.session.flush()
+
+        budget_source = None
+        if budget_name:
+            budget_source = BudgetSource.query.filter_by(name=budget_name).first()
+            if not budget_source:
+                budget_source = BudgetSource(name=budget_name)
+                db.session.add(budget_source)
+                db.session.flush()
+
+        bi_officer_name = request.form.get('bi_officer_name', '').strip()
+        bi_officer = None
+        if bi_officer_name:
+            bi_officer = BIOfficer.query.filter_by(name=bi_officer_name).first()
+            if not bi_officer:
+                bi_officer = BIOfficer(name=bi_officer_name)
+                db.session.add(bi_officer)
+                db.session.flush()
+
+        sh_officer_name = request.form.get('shipment_officer_name', '').strip()
+        sh_officer = None
+        if sh_officer_name:
+            sh_officer = ShipmentOfficer.query.filter_by(name=sh_officer_name).first()
+            if not sh_officer:
+                sh_officer = ShipmentOfficer(name=sh_officer_name)
+                db.session.add(sh_officer)
+                db.session.flush()
+
+        po_status_name = request.form.get('po_status', '').strip()
+        po_status = None
+        if po_status_name:
+            po_status = POStatus.query.filter_by(name=po_status_name).first()
+            if not po_status:
+                po_status = POStatus(name=po_status_name)
+                db.session.add(po_status)
+                db.session.flush()
+
+        max_sn = db.session.query(func.max(PurchaseOrder.serial_number)).scalar() or 0
+
+        po = PurchaseOrder(
+            serial_number=max_sn + 1,
+            received_date=parse_date(request.form.get('received_date')),
+            tender_reference=request.form.get('tender_reference', '').strip(),
+            po_number=po_number,
+            supplier_id=supplier.id if supplier else None,
+            supplier_name_raw=supplier_name if not supplier else None,
+            country_raw=supplier_country if not supplier else None,
+            local_agent_id=local_agent.id if local_agent else None,
+            local_agent_raw=local_agent_name if not local_agent else None,
+            total_po_amount=parse_float(request.form.get('total_po_amount')),
+            currency=request.form.get('currency', '').strip(),
+            budget_source_id=budget_source.id if budget_source else None,
+            mode_of_shipment=request.form.get('mode_of_shipment', '').strip(),
+            po_transferred_date=parse_date(request.form.get('po_transferred_date')),
+            remark=request.form.get('remark', '').strip(),
+            biofficer_id=bi_officer.id if bi_officer else None,
+            shipment_officer_id=sh_officer.id if sh_officer else None,
+            status_id=po_status.id if po_status else None
+        )
+        db.session.add(po)
+        db.session.flush()
+
+        descs = request.form.getlist('item_description[]')
+        units = request.form.getlist('item_unit[]')
+        qtys = request.form.getlist('item_quantity[]')
+        prices = request.form.getlist('item_unit_price[]')
+
+        for i, desc in enumerate(descs):
+            if desc.strip():
+                li = LineItem(
+                    po_id=po.id,
+                    description=desc.strip(),
+                    unit=units[i].strip() if i < len(units) else '',
+                    quantity=parse_float(qtys[i]) if i < len(qtys) else None,
+                    unit_price=parse_float(prices[i]) if i < len(prices) else None,
+                    total_price=parse_float(qtys[i]) * parse_float(prices[i]) if i < len(qtys) and i < len(prices) and parse_float(qtys[i]) and parse_float(prices[i]) else None
+                )
+                db.session.add(li)
+
+        lc_status = request.form.get('lc_status', '').strip()
+        if lc_status:
+            lc = LetterOfCredit(
+                po_id=po.id,
+                opening_status=lc_status,
+                opened_date=parse_date(request.form.get('lc_opened_date')),
+                expiry_date=parse_date(request.form.get('lc_expiry_date'))
+            )
+            db.session.add(lc)
+
+        shipment_officer = request.form.get('shipment_officer', '').strip()
+        if shipment_officer:
+            sh = Shipment(
+                po_id=po.id,
+                shipment_officer=shipment_officer,
+                shipment_status=request.form.get('shipment_status', '').strip(),
+                order_closure=request.form.get('order_closure', '').strip()
+            )
+            db.session.add(sh)
+
+        db.session.commit()
+        flash(f'Contract {po_number} created successfully!', 'success')
+        return redirect(url_for('po_detail', po_id=po.id))
+
+    return render_template('po_create.html',
+        suppliers=Supplier.query.order_by(Supplier.name).all(),
+        agents=LocalAgent.query.order_by(LocalAgent.name).all(),
+        budgets=BudgetSource.query.order_by(BudgetSource.name).all(),
+        bi_officers=BIOfficer.query.order_by(BIOfficer.name).all(),
+        shipment_officers=ShipmentOfficer.query.order_by(ShipmentOfficer.name).all(),
+        po_statuses=POStatus.query.order_by(POStatus.name).all())
+
+@app.route('/items')
+@login_required
+def line_items():
+    page = request.args.get('page', 1, type=int)
+    per_page = 100
+    search = request.args.get('search', '').strip()
+    query = LineItem.query.join(PurchaseOrder)
+    if search:
+        q = f'%{search}%'
+        query = query.filter(db.or_(LineItem.description.like(q), PurchaseOrder.po_number.like(q)))
+    query = query.order_by(LineItem.po_id.desc(), LineItem.id)
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    return render_template('items.html', items=pagination.items, pagination=pagination, search=search)
+
+@app.route('/api/pos/<int:po_id>/items')
+@login_required
+def api_po_items(po_id):
+    items = LineItem.query.filter_by(po_id=po_id).order_by(LineItem.id).all()
+    return jsonify([{
+        'description': i.description,
+        'unit': i.unit,
+        'quantity': i.quantity,
+        'unit_price': i.unit_price
+    } for i in items])
+
+@app.route('/api/suppliers')
+@login_required
+def api_suppliers():
+    q = request.args.get('q', '').strip()
+    query = Supplier.query
+    if q:
+        query = query.filter(Supplier.name.like(f'%{q}%'))
+    suppliers = query.order_by(Supplier.name).limit(20).all()
+    return jsonify([{'id': s.id, 'name': s.name, 'country': s.country} for s in suppliers])
+
+@app.route('/api/agents')
+@login_required
+def api_agents():
+    q = request.args.get('q', '').strip()
+    query = LocalAgent.query
+    if q:
+        query = query.filter(LocalAgent.name.like(f'%{q}%'))
+    agents = query.order_by(LocalAgent.name).limit(20).all()
+    return jsonify([{'id': a.id, 'name': a.name} for a in agents])
+
+@app.route('/settings/bi-officers', methods=['GET', 'POST'])
+@login_required
+def bi_officers():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        if name:
+            if not BIOfficer.query.filter_by(name=name).first():
+                db.session.add(BIOfficer(name=name))
+                db.session.commit()
+                flash('BI Officer added', 'success')
+            else:
+                flash('Already exists', 'warning')
+        return redirect(url_for('bi_officers'))
+    officers = BIOfficer.query.order_by(BIOfficer.name).all()
+    return render_template('officers.html', title='BI Officers', officers=officers, endpoint='bi_officers')
+
+@app.route('/settings/bi-officers/<int:id>/delete', methods=['POST'])
+@login_required
+def bi_officer_delete(id):
+    officer = BIOfficer.query.get_or_404(id)
+    db.session.delete(officer)
+    db.session.commit()
+    flash('Deleted', 'success')
+    return redirect(url_for('bi_officers'))
+
+@app.route('/settings/shipment-officers', methods=['GET', 'POST'])
+@login_required
+def shipment_officers():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        if name:
+            if not ShipmentOfficer.query.filter_by(name=name).first():
+                db.session.add(ShipmentOfficer(name=name))
+                db.session.commit()
+                flash('Shipment Officer added', 'success')
+            else:
+                flash('Already exists', 'warning')
+        return redirect(url_for('shipment_officers'))
+    officers = ShipmentOfficer.query.order_by(ShipmentOfficer.name).all()
+    return render_template('officers.html', title='Shipment Officers', officers=officers, endpoint='shipment_officers')
+
+@app.route('/settings/shipment-officers/<int:id>/delete', methods=['POST'])
+@login_required
+def shipment_officer_delete(id):
+    officer = ShipmentOfficer.query.get_or_404(id)
+    db.session.delete(officer)
+    db.session.commit()
+    flash('Deleted', 'success')
+    return redirect(url_for('shipment_officers'))
+
+@app.route('/settings/statuses', methods=['GET', 'POST'])
+@login_required
+def po_statuses():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        if name:
+            if not POStatus.query.filter_by(name=name).first():
+                db.session.add(POStatus(name=name))
+                db.session.commit()
+                flash('Status added', 'success')
+            else:
+                flash('Already exists', 'warning')
+        return redirect(url_for('po_statuses'))
+    statuses = POStatus.query.order_by(POStatus.name).all()
+    return render_template('officers.html', title='PO Statuses', officers=statuses, endpoint='po_statuses')
+
+@app.route('/settings/statuses/<int:id>/delete', methods=['POST'])
+@login_required
+def po_statuses_delete(id):
+    status = POStatus.query.get_or_404(id)
+    db.session.delete(status)
+    db.session.commit()
+    flash('Deleted', 'success')
+    return redirect(url_for('po_statuses'))
+
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        return redirect(url_for('po_list'))
+    return render_template('import.html')
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(host='0.0.0.0', port=port, debug=debug)

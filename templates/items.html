@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}All Line Items{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-list-ul"></i> All Line Items</span>
+        <form class="d-flex gap-2" method="GET">
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Search item or PO..."
+                   value="{{ search }}" style="min-width:250px">
+            <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Search</button>
+            {% if search %}<a href="{{ url_for('line_items') }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>PO Number</th>
+                        <th>Description</th>
+                        <th>Unit</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Supplier</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td><a href="{{ url_for('po_detail', po_id=item.po_id) }}">{{ item.po.po_number or item.po_id }}</a></td>
+                        <td>{{ item.description or '' }}</td>
+                        <td>{{ item.unit or '' }}</td>
+                        <td>{{ "{:,.0f}".format(item.quantity) if item.quantity else '' }}</td>
+                        <td>{{ "{:,.4f}".format(item.unit_price) if item.unit_price else '' }}</td>
+                        <td>{{ item.po.supplier.name if item.po.supplier else item.po.supplier_name_raw or '' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-muted text-center">No items found</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('line_items', page=pagination.prev_num, search=search) }}">Previous</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                    <li class="page-item {{ 'active' if p == pagination.page }}">
+                        <a class="page-link" href="{{ url_for('line_items', page=p, search=search) }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('line_items', page=pagination.next_num, search=search) }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}PO {{ po.po_number or po.id }}{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cart"></i> PO #{{ po.po_number or po.id }}</span>
+                <a href="{{ url_for('po_edit', po_id=po.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">PO Number:</div>
+                    <div class="col-md-8">{{ po.po_number or '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Tender Reference:</div>
+                    <div class="col-md-8">{{ po.tender_reference or '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Received Date:</div>
+                    <div class="col-md-8">{{ po.received_date.strftime('%Y-%m-%d') if po.received_date else '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Supplier:</div>
+                    <div class="col-md-8">{{ po.supplier.name if po.supplier else po.supplier_name_raw or '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Country:</div>
+                    <div class="col-md-8">{{ po.supplier.country if po.supplier else po.country_raw or '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Local Agent:</div>
+                    <div class="col-md-8">{{ po.local_agent.name if po.local_agent else po.local_agent_raw or '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Total PO Amount:</div>
+                    <div class="col-md-8">{{ "{:,.2f}".format(po.total_po_amount) if po.total_po_amount else '-' }} {{ po.currency or '' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Budget Source:</div>
+                    <div class="col-md-8">{{ po.budget_source.name if po.budget_source else '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Mode of Shipment:</div>
+                    <div class="col-md-8">{{ po.mode_of_shipment or '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">PO Transferred:</div>
+                    <div class="col-md-8">{{ po.po_transferred_date.strftime('%Y-%m-%d') if po.po_transferred_date else '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">BI Officer:</div>
+                    <div class="col-md-8">{{ po.biofficer.name if po.biofficer else '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Shipment Officer:</div>
+                    <div class="col-md-8">{{ po.shipment_officer.name if po.shipment_officer else '-' }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">PO Status:</div>
+                    <div class="col-md-8">
+                        {% if po.po_status %}
+                        <span class="badge bg-info">{{ po.po_status.name }}</span>
+                        {% else %}-{% endif %}
+                    </div>
+                </div>
+                {% if po.remark %}
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Remark:</div>
+                    <div class="col-md-8">{{ po.remark }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-file-text"></i> Letter of Credit</div>
+            <div class="card-body">
+                {% set lc = po.letter_of_credits.first() %}
+                {% if lc %}
+                <div class="mb-1"><strong>Status:</strong> {{ lc.opening_status or '-' }}</div>
+                <div class="mb-1"><strong>Opened:</strong> {{ lc.opened_date.strftime('%Y-%m-%d') if lc.opened_date else '-' }}</div>
+                <div class="mb-1"><strong>Expiry:</strong> {{ lc.expiry_date.strftime('%Y-%m-%d') if lc.expiry_date else '-' }}</div>
+                {% else %}
+                <p class="text-muted mb-0">No LC record</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-truck"></i> Shipment</div>
+            <div class="card-body">
+                {% set sh = po.shipments.first() %}
+                {% if sh %}
+                <div class="mb-1"><strong>Officer:</strong> {{ sh.shipment_officer or '-' }}</div>
+                <div class="mb-1"><strong>Status:</strong>
+                    <span class="badge bg-info">{{ sh.shipment_status or '-' }}</span>
+                </div>
+                <div class="mb-1"><strong>Order Closure:</strong> {{ sh.order_closure or '-' }}</div>
+                {% else %}
+                <p class="text-muted mb-0">No shipment record</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="bi bi-list"></i> Line Items</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Description</th>
+                        <th>Unit</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in po.line_items %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ item.description or '' }}</td>
+                        <td>{{ item.unit or '' }}</td>
+                        <td>{{ "{:,.0f}".format(item.quantity) if item.quantity else '' }}</td>
+                        <td>{{ "{:,.4f}".format(item.unit_price) if item.unit_price else '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

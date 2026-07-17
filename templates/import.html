@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Import Data{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-upload"></i> Data Import</div>
+            <div class="card-body">
+                <p>Data has been imported from the Google Sheet via the import script. See console for details.</p>
+                <p>To re-import data, run:</p>
+                <pre class="bg-light p-3"><code>cd {{ import_path or '.' }}
+python import_data.py</code></pre>
+                <a href="{{ url_for('po_list') }}" class="btn btn-primary">View Purchase Orders</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

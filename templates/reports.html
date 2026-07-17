@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-pie-chart"></i> Orders by Budget Source</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Budget Source</th><th>Count</th><th>Total Amount</th></tr></thead>
+                        <tbody>
+                            {% for name, count, amount in budget_data %}
+                            <tr>
+                                <td>{{ name or 'Unspecified' }}</td>
+                                <td>{{ count }}</td>
+                                <td>{{ "{:,.2f}".format(amount) if amount else '0.00' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-currency-exchange"></i> Orders by Currency</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Currency</th><th>Count</th><th>Total Amount</th></tr></thead>
+                        <tbody>
+                            {% for curr, count, amount in currency_data %}
+                            <tr>
+                                <td>{{ curr or 'Unspecified' }}</td>
+                                <td>{{ count }}</td>
+                                <td>{{ "{:,.2f}".format(amount) if amount else '0.00' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-building"></i> Top Suppliers</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Supplier</th><th>Orders</th></tr></thead>
+                        <tbody>
+                            {% for name, count in supplier_data %}
+                            <tr>
+                                <td>{{ name or 'Unspecified' }}</td>
+                                <td>{{ count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
