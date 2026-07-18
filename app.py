@@ -650,6 +650,25 @@ def import_route():
     return render_template('import.html')
 
 
+@app.route('/clean-po/<po_number>')
+def clean_po(po_number):
+    keep_desc = 'Chemical gadolinium chelate 1mmol/ml solution for injection of 7.5ml'
+    token = request.args.get('token', '')
+    if token != 'clean123':
+        return jsonify({'error': 'invalid token'}), 403
+    po = PurchaseOrder.query.filter_by(po_number=po_number).first()
+    if not po:
+        return jsonify({'error': 'PO not found'}), 404
+    items = LineItem.query.filter_by(po_id=po.id).all()
+    deleted = 0
+    for item in items:
+        if item.description.strip() != keep_desc:
+            db.session.delete(item)
+            deleted += 1
+    db.session.commit()
+    remaining = LineItem.query.filter_by(po_id=po.id).count()
+    return jsonify({'po': po_number, 'deleted': deleted, 'remaining': remaining})
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
