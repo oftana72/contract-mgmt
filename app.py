@@ -4,7 +4,7 @@ from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Float, Date, Text, ForeignKey, func, or_
+from sqlalchemy import Integer, String, Float, Date, Text, ForeignKey, func, or_, distinct
 from dateutil import parser as dateparser
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -222,12 +222,13 @@ def po_list():
     per_page = 50
     search = request.args.get('search', '').strip()
     status_filter = request.args.get('status', '').strip()
+    year_filter = request.args.get('year', '').strip()
     budget_filter = request.args.get('budget', '').strip()
 
     query = PurchaseOrder.query
 
     if search:
-        q = f'%{search}%'
+        q = '%' + search + '%'
         query = query.join(Supplier, PurchaseOrder.supplier_id == Supplier.id, isouter=True)
         query = query.filter(
             db.or_(
@@ -242,15 +243,36 @@ def po_list():
         query = query.join(POStatus, PurchaseOrder.status_id == POStatus.id, isouter=True)
         query = query.filter(POStatus.name == status_filter)
 
-    query = query.order_by(PurchaseOrder.serial_number.is_(None), PurchaseOrder.serial_number.desc())
+    if year_filter:
+        try:
+            y = int(year_filter)
+            query = query.filter(db.extract('year', PurchaseOrder.received_date) == y)
+        except ValueError:
+            pass
+
+    query = query.order_by(PurchaseOrder.received_date.desc(), PurchaseOrder.serial_number.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     pos = pagination.items
-    budget_sources = BudgetSource.query.order_by(BudgetSource.name).all()
 
+    years = db.session.query(db.extract('year', PurchaseOrder.received_date).label('y')) \
+        .filter(PurchaseOrder.received_date.isnot(None)) \
+        .distinct().order_by(db.text('y desc')).all()
+    years = [r[0] for r in years]
+
+    budget_sources = BudgetSource.query.order_by(BudgetSource.name).all()
     all_statuses = POStatus.query.order_by(POStatus.name).all()
+
+    year_summary = db.session.query(
+        db.extract('year', PurchaseOrder.received_date).label('y'),
+        func.count(PurchaseOrder.id),
+        func.sum(PurchaseOrder.total_po_amount)
+    ).filter(PurchaseOrder.received_date.isnot(None)) \
+     .group_by(db.text('y')).order_by(db.text('y desc')).all()
+
     return render_template('po_list.html', pos=pos, pagination=pagination,
                           search=search, budget_sources=budget_sources,
-                          all_statuses=all_statuses, status_filter=status_filter)
+                          all_statuses=all_statuses, status_filter=status_filter,
+                          year_filter=year_filter, years=years, year_summary=year_summary)
 
 @app.route('/pos/<int:po_id>')
 @login_required
@@ -340,8 +362,34 @@ def reports():
         PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
     ).group_by(PurchaseOrder.currency).all()
 
+    po_year = db.session.query(
+        db.extract('year', PurchaseOrder.received_date).label('y'),
+        PurchaseOrder.id, PurchaseOrder.total_po_amount
+    ).filter(PurchaseOrder.received_date.isnot(None)).subquery()
+
+    item_counts = db.session.query(
+        LineItem.po_id, func.count(LineItem.id).label('ic')
+    ).group_by(LineItem.po_id).subquery()
+
+    year_data = db.session.query(
+        po_year.c.y,
+        func.count(distinct(po_year.c.id)),
+        func.sum(po_year.c.total_po_amount),
+        func.coalesce(func.sum(item_counts.c.ic), 0)
+    ).outerjoin(item_counts, po_year.c.id == item_counts.c.po_id
+    ).group_by(po_year.c.y).order_by(po_year.c.y.desc()).all()
+
+    budget_year_data = db.session.query(
+        BudgetSource.name,
+        db.extract('year', PurchaseOrder.received_date).label('y'),
+        func.sum(PurchaseOrder.total_po_amount)
+    ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
+    ).filter(PurchaseOrder.received_date.isnot(None)
+    ).group_by(BudgetSource.name, db.text('y')).order_by(BudgetSource.name, db.text('y desc')).all()
+
     return render_template('reports.html', budget_data=budget_data,
-                          supplier_data=supplier_data, currency_data=currency_data)
+                          supplier_data=supplier_data, currency_data=currency_data,
+                          year_data=year_data, budget_year_data=budget_year_data)
 
 @app.route('/api/pos')
 @login_required

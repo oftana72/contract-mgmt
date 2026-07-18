@@ -2,6 +2,52 @@
 {% block title %}Reports{% endblock %}
 {% block content %}
 <div class="row g-3">
+
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-calendar3"></i> Contracts by Year</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Year</th><th>PO Count</th><th>Total Amount</th><th>Line Items</th></tr></thead>
+                        <tbody>
+                            {% for y, cnt, amt, items in year_data %}
+                            <tr>
+                                <td><strong>{{ y }}</strong></td>
+                                <td>{{ cnt }}</td>
+                                <td>{{ "{:,.2f}".format(amt) if amt else '0.00' }}</td>
+                                <td>{{ items }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-pie-chart"></i> Budget Source by Year</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Budget Source</th><th>Year</th><th>Total Amount</th></tr></thead>
+                        <tbody>
+                            {% for name, y, amt in budget_year_data %}
+                            <tr>
+                                <td>{{ name or 'Unspecified' }}</td>
+                                <td>{{ y }}</td>
+                                <td>{{ "{:,.2f}".format(amt) if amt else '0.00' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="col-md-6">
         <div class="card">
             <div class="card-header"><i class="bi bi-pie-chart"></i> Orders by Budget Source</div>

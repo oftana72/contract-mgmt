@@ -1,23 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Purchase Orders{% endblock %}
 {% block content %}
+
+{% if year_summary %}
+<div class="row g-2 mb-3">
+    <div class="col-12"><small class="text-muted"><i class="bi bi-calendar3"></i> Contracts by Year</small></div>
+    {% for y, cnt, amt in year_summary %}
+    <div class="col-md-2 col-6">
+        <div class="card border-0 bg-light text-center py-1 {{ 'border-primary border' if year_filter == y|string }}">
+            <a href="{{ url_for('po_list', year=y, search=search, status=status_filter) }}" class="text-decoration-none text-dark">
+                <strong>{{ y }}</strong><br>
+                <span class="small">{{ cnt }} PO{{ 's' if cnt != 1 }}</span><br>
+                <span class="small text-muted">{{ "{:,.0f}".format(amt) if amt else '0' }}</span>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+    {% if year_filter %}
+    <div class="col-md-2 col-6 d-flex align-items-center">
+        <a href="{{ url_for('po_list', search=search, status=status_filter) }}" class="btn btn-sm btn-outline-secondary">Clear Year</a>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="bi bi-table"></i> All Purchase Orders</span>
+        <span><i class="bi bi-table"></i> Purchase Orders
+            {% if year_filter %}<span class="badge bg-secondary">{{ year_filter }}</span>{% endif %}
+            <small class="text-muted">({{ pagination.total }} total)</small>
+        </span>
         <div class="d-flex gap-2">
         <a href="{{ url_for('po_create') }}" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> New Contract</a>
         <a href="{{ url_for('line_items') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-list-ul"></i> All Items</a>
         <form class="d-flex gap-2" method="GET">
+            {% if year_filter %}<input type="hidden" name="year" value="{{ year_filter }}">{% endif %}
             <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
                 <option value="">All Statuses</option>
                 {% for s in all_statuses %}
                 <option value="{{ s.name }}" {{ 'selected' if status_filter == s.name }}>{{ s.name }}</option>
                 {% endfor %}
             </select>
+            <select name="year" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+                <option value="">All Years</option>
+                {% for y in years %}
+                <option value="{{ y }}" {{ 'selected' if year_filter == y|string }}>{{ y }}</option>
+                {% endfor %}
+            </select>
             <input type="text" name="search" class="form-control form-control-sm" placeholder="Search PO, tender, supplier..."
                    value="{{ search }}" style="min-width:250px">
             <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Search</button>
-            {% if search or status_filter %}
+            {% if search or status_filter or year_filter %}
                 <a href="{{ url_for('po_list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
             {% endif %}
         </form>
@@ -37,6 +70,7 @@
                         <th>Currency</th>
                         <th>Budget</th>
                         <th>Status</th>
+                        <th>Year</th>
                         <th>Received</th>
                     </tr>
                 </thead>
@@ -52,6 +86,7 @@
                         <td>{{ po.currency or '' }}</td>
                         <td>{{ po.budget_source.name if po.budget_source else '' }}</td>
                         <td>{% if po.po_status %}<span class="badge bg-info">{{ po.po_status.name }}</span>{% endif %}</td>
+                        <td>{% if po.received_date %}<span class="badge bg-secondary">{{ po.received_date.year }}</span>{% endif %}</td>
                         <td>{{ po.received_date.strftime('%Y-%m-%d') if po.received_date else '' }}</td>
                     </tr>
                     {% endfor %}
@@ -64,19 +99,19 @@
         <nav>
             <ul class="pagination pagination-sm mb-0">
                 {% if pagination.has_prev %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('po_list', page=pagination.prev_num, search=search) }}">Previous</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('po_list', page=pagination.prev_num, search=search, status=status_filter, year=year_filter) }}">Previous</a></li>
                 {% endif %}
                 {% for p in pagination.iter_pages() %}
                     {% if p %}
                     <li class="page-item {{ 'active' if p == pagination.page }}">
-                        <a class="page-link" href="{{ url_for('po_list', page=p, search=search) }}">{{ p }}</a>
+                        <a class="page-link" href="{{ url_for('po_list', page=p, search=search, status=status_filter, year=year_filter) }}">{{ p }}</a>
                     </li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">...</span></li>
                     {% endif %}
                 {% endfor %}
                 {% if pagination.has_next %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('po_list', page=pagination.next_num, search=search) }}">Next</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('po_list', page=pagination.next_num, search=search, status=status_filter, year=year_filter) }}">Next</a></li>
                 {% endif %}
             </ul>
         </nav>
@@ -115,7 +150,7 @@ $(document).ready(function() {
     var poTable = $('#poTable').DataTable({
         paging: false,
         info: false,
-        order: [[1, 'desc']],
+        order: [[9, 'desc'], [1, 'desc']],
         columnDefs: [{ orderable: false, targets: 0 }]
     });
 });
