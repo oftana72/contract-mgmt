@@ -717,6 +717,127 @@ def clean_po(po_number):
     remaining = LineItem.query.filter_by(po_id=po.id).count()
     return jsonify({'po': po_number, 'deleted': deleted, 'remaining': remaining})
 
+@app.route('/export/pos')
+@login_required
+def export_pos():
+    import csv, io
+    search = request.args.get('search', '').strip()
+    status_filter = request.args.get('status', '').strip()
+    year_filter = request.args.get('year', '').strip()
+
+    query = PurchaseOrder.query
+    if search:
+        q = '%' + search + '%'
+        query = query.join(Supplier, PurchaseOrder.supplier_id == Supplier.id, isouter=True)
+        query = query.filter(db.or_(
+            PurchaseOrder.po_number.like(q), PurchaseOrder.tender_reference.like(q),
+            Supplier.name.like(q), PurchaseOrder.supplier_name_raw.like(q)))
+    if status_filter:
+        query = query.join(POStatus, PurchaseOrder.status_id == POStatus.id, isouter=True)
+        query = query.filter(POStatus.name == status_filter)
+    if year_filter:
+        try:
+            query = query.filter(db.extract('year', PurchaseOrder.received_date) == int(year_filter))
+        except ValueError:
+            pass
+    query = query.order_by(PurchaseOrder.received_date.desc(), PurchaseOrder.serial_number.desc())
+    pos = query.all()
+
+    si = io.StringIO()
+    w = csv.writer(si)
+    w.writerow(['Serial', 'PO Number', 'Tender Reference', 'Supplier', 'Country', 'Items Count',
+                'Total Amount', 'Currency', 'Budget Source', 'Status', 'Received Date',
+                'Transferred Date', 'Mode of Shipment', 'Remark'])
+    for po in pos:
+        items_cnt = po.line_items.count()
+        w.writerow([
+            po.serial_number, po.po_number, po.tender_reference,
+            po.supplier.name if po.supplier else po.supplier_name_raw,
+            po.supplier.country if po.supplier else po.country_raw,
+            items_cnt,
+            po.total_po_amount, po.currency,
+            po.budget_source.name if po.budget_source else '',
+            po.po_status.name if po.po_status else '',
+            po.received_date.strftime('%Y-%m-%d') if po.received_date else '',
+            po.po_transferred_date.strftime('%Y-%m-%d') if po.po_transferred_date else '',
+            po.mode_of_shipment or '', po.remark or ''
+        ])
+    resp = app.response_class(si.getvalue(), mimetype='text/csv')
+    resp.headers['Content-Disposition'] = 'attachment; filename=purchase_orders.csv'
+    return resp
+
+@app.route('/export/items')
+@login_required
+def export_items():
+    import csv, io
+    items = LineItem.query.join(PurchaseOrder).order_by(PurchaseOrder.po_number, LineItem.id).all()
+    si = io.StringIO()
+    w = csv.writer(si)
+    w.writerow(['PO Number', 'Description', 'Unit', 'Quantity', 'Unit Price', 'Total Price'])
+    for item in items:
+        w.writerow([item.po.po_number, item.description, item.unit,
+                    item.quantity, item.unit_price, item.total_price])
+    resp = app.response_class(si.getvalue(), mimetype='text/csv')
+    resp.headers['Content-Disposition'] = 'attachment; filename=line_items.csv'
+    return resp
+
+@app.route('/export/reports')
+@login_required
+def export_reports():
+    import csv, io
+    section = request.args.get('section', 'years')
+
+    si = io.StringIO()
+    w = csv.writer(si)
+
+    if section == 'years':
+        po_year = db.session.query(
+            db.extract('year', PurchaseOrder.received_date).label('y'),
+            PurchaseOrder.id, PurchaseOrder.total_po_amount
+        ).filter(PurchaseOrder.received_date.isnot(None)).subquery()
+        item_counts = db.session.query(
+            LineItem.po_id, func.count(LineItem.id).label('ic')
+        ).group_by(LineItem.po_id).subquery()
+        data = db.session.query(
+            po_year.c.y, func.count(distinct(po_year.c.id)),
+            func.sum(po_year.c.total_po_amount),
+            func.coalesce(func.sum(item_counts.c.ic), 0)
+        ).outerjoin(item_counts, po_year.c.id == item_counts.c.po_id
+        ).group_by(po_year.c.y).order_by(po_year.c.y.desc()).all()
+        w.writerow(['Year', 'PO Count', 'Total Amount', 'Line Items'])
+        for y, cnt, amt, itm in data:
+            w.writerow([y, cnt, amt if amt else 0, itm])
+
+    elif section == 'budget':
+        data = db.session.query(
+            BudgetSource.name, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+        ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
+        ).group_by(BudgetSource.name).all()
+        w.writerow(['Budget Source', 'PO Count', 'Total Amount'])
+        for name, cnt, amt in data:
+            w.writerow([name or 'Unspecified', cnt, amt if amt else 0])
+
+    elif section == 'currency':
+        data = db.session.query(
+            PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+        ).group_by(PurchaseOrder.currency).all()
+        w.writerow(['Currency', 'PO Count', 'Total Amount'])
+        for curr, cnt, amt in data:
+            w.writerow([curr or 'Unspecified', cnt, amt if amt else 0])
+
+    elif section == 'suppliers':
+        data = db.session.query(
+            Supplier.name, func.count(PurchaseOrder.id)
+        ).join(Supplier, PurchaseOrder.supplier_id == Supplier.id, isouter=True
+        ).group_by(Supplier.name).order_by(func.count(PurchaseOrder.id).desc()).all()
+        w.writerow(['Supplier', 'PO Count'])
+        for name, cnt in data:
+            w.writerow([name or 'Unspecified', cnt])
+
+    resp = app.response_class(si.getvalue(), mimetype='text/csv')
+    resp.headers['Content-Disposition'] = 'attachment; filename=report_{}.csv'.format(section)
+    return resp
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'

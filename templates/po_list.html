@@ -33,6 +33,14 @@
         <div class="d-flex gap-2">
         <a href="{{ url_for('po_create') }}" class="btn btn-sm btn-success"><i class="bi bi-plus-circle"></i> New Contract</a>
         <a href="{{ url_for('line_items') }}" class="btn btn-sm btn-outline-info"><i class="bi bi-list-ul"></i> All Items</a>
+        <div class="btn-group btn-group-sm">
+            <a href="{{ url_for('export_pos', search=search, status=status_filter, year=year_filter) }}" class="btn btn-outline-success"><i class="bi bi-download"></i> CSV</a>
+            <button type="button" class="btn btn-outline-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown"></button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ url_for('export_pos', search=search, status=status_filter, year=year_filter) }}"><i class="bi bi-table"></i> Export POs (filtered)</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('export_items') }}"><i class="bi bi-list-ul"></i> Export All Items</a></li>
+            </ul>
+        </div>
         <form class="d-flex gap-2" method="GET">
             {% if year_filter %}<input type="hidden" name="year" value="{{ year_filter }}">{% endif %}
             <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
