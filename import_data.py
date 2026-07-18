@@ -262,6 +262,115 @@ def ensure_admin():
         db.session.add(admin)
         db.session.commit()
 
+def import_from_rows(rows):
+    """Import data from CSV rows (list of lists). Returns (po_count, item_count)."""
+    data_start = None
+    for i, row in enumerate(rows):
+        if row and row[0].strip() == '1':
+            data_start = i
+            break
+    if data_start is None:
+        return 0, 0
+    class FakeArgs:
+        pass
+    current_po = None
+    po_count = 0
+    item_count = 0
+    i = data_start
+    while i < len(rows):
+        # Same logic as process_rows() - inline it
+        row = rows[i]
+        if not row or not row[0].strip():
+            if current_po and len(row) > 7:
+                desc = row[7].strip() if len(row) > 7 and row[7].strip() else ''
+                unit = row[8].strip() if len(row) > 8 else ''
+                qty = parse_float(row[9]) if len(row) > 9 else None
+                unit_price = parse_float(row[10]) if len(row) > 10 else None
+                total_price = parse_float(row[11]) if len(row) > 11 else None
+                if desc:
+                    db.session.add(LineItem(po_id=current_po.id, description=desc, unit=unit, quantity=qty, unit_price=unit_price, total_price=total_price))
+                    item_count += 1
+            i += 1
+            continue
+        try:
+            sn_int = int(float(row[0].strip().replace(',', '')))
+        except (ValueError, AttributeError):
+            i += 1
+            continue
+        current_sn = sn_int
+        received_date = parse_date(row[1]) if len(row) > 1 else None
+        tender_ref = row[2].strip() if len(row) > 2 else ''
+        po_number = row[3].strip() if len(row) > 3 else ''
+        supplier_name = row[4].strip() if len(row) > 4 else ''
+        country = row[5].strip() if len(row) > 5 else ''
+        local_agent_name = row[6].strip() if len(row) > 6 else ''
+        desc = row[7].strip() if len(row) > 7 and row[7].strip() else ''
+        unit = row[8].strip() if len(row) > 8 else ''
+        qty = parse_float(row[9]) if len(row) > 9 else None
+        unit_price = parse_float(row[10]) if len(row) > 10 else None
+        total_price = parse_float(row[11]) if len(row) > 11 else None
+        total_po_amount = parse_float(row[12]) if len(row) > 12 else None
+        currency = row[13].strip() if len(row) > 13 else ''
+        budget_name = row[14].strip() if len(row) > 14 else ''
+        mode_shipment = row[15].strip() if len(row) > 15 else ''
+        po_transferred = parse_date(row[16]) if len(row) > 16 else None
+        pg_requested = parse_date(row[17]) if len(row) > 17 else None
+        pg_received = parse_date(row[18]) if len(row) > 18 else None
+        pg_confirmed = parse_date(row[19]) if len(row) > 19 else None
+        bank_name = row[20].strip() if len(row) > 20 else ''
+        pg_ref = row[21].strip() if len(row) > 21 else ''
+        pg_expiry = parse_date(row[22]) if len(row) > 22 else None
+        remaining_days = parse_float(row[23]) if len(row) > 23 else None
+        submit_pg = row[24].strip() if len(row) > 24 else ''
+        pg_status = row[25].strip() if len(row) > 25 else ''
+        status_date = parse_date(row[26]) if len(row) > 26 else None
+        pg_receiver = row[27].strip() if len(row) > 27 else ''
+        bi_officer = row[28].strip() if len(row) > 28 else ''
+        lc_status = row[29].strip() if len(row) > 29 else ''
+        lc_opened = parse_date(row[30]) if len(row) > 30 else None
+        lc_expiry = parse_date(row[31]) if len(row) > 31 else None
+        lc_age = parse_float(row[32]) if len(row) > 32 else None
+        shipment_officer = row[33].strip() if len(row) > 33 else ''
+        shipment_status = row[34].strip() if len(row) > 34 else ''
+        order_closure = row[35].strip() if len(row) > 35 else ''
+        remark = ''
+        if len(row) > 36 and row[36].strip():
+            remark = row[36].strip()
+        if not remark and len(row) > 37 and row[37].strip():
+            remark = row[37].strip()
+        supplier = None
+        if supplier_name:
+            existing = Supplier.query.filter_by(name=supplier_name).first()
+            supplier = existing if existing else Supplier(name=supplier_name, country=country)
+            if not existing:
+                db.session.add(supplier)
+                db.session.flush()
+        local_agent = get_or_create(LocalAgent, 'name', local_agent_name) if local_agent_name else None
+        budget_source = get_or_create(BudgetSource, 'name', budget_name) if budget_name else None
+        try:
+            po = PurchaseOrder(serial_number=sn_int, received_date=received_date, tender_reference=tender_ref, po_number=po_number, supplier_id=supplier.id if supplier else None, supplier_name_raw=supplier_name if not supplier else None, country_raw=country if not supplier else None, local_agent_id=local_agent.id if local_agent else None, local_agent_raw=local_agent_name if not local_agent else None, total_po_amount=total_po_amount, currency=currency, budget_source_id=budget_source.id if budget_source else None, mode_of_shipment=mode_shipment, po_transferred_date=po_transferred, remark=remark)
+            db.session.add(po)
+            db.session.flush()
+            po_count += 1
+            current_po = po
+        except Exception as e:
+            i += 1
+            continue
+        if desc:
+            db.session.add(LineItem(po_id=po.id, description=desc, unit=unit, quantity=qty, unit_price=unit_price, total_price=total_price))
+            item_count += 1
+        if pg_requested or pg_received or pg_confirmed or bank_name:
+            db.session.add(PerformanceGuarantee(po_id=po.id, requested_date=pg_requested, received_date=pg_received, confirmed_date=pg_confirmed, bank_name=bank_name, pg_reference=pg_ref, expiry_date=pg_expiry, remaining_days=remaining_days if remaining_days and remaining_days != -1 else None, submit_pg=submit_pg, status=pg_status, status_date=status_date, pg_receiver_name=pg_receiver, bi_officer=bi_officer))
+        if lc_status:
+            db.session.add(LetterOfCredit(po_id=po.id, opening_status=lc_status, opened_date=lc_opened, expiry_date=lc_expiry, age_days=lc_age))
+        if shipment_officer or shipment_status:
+            db.session.add(Shipment(po_id=po.id, shipment_officer=shipment_officer, shipment_status=shipment_status, order_closure=order_closure))
+        if po_count % 50 == 0:
+            db.session.commit()
+        i += 1
+    db.session.commit()
+    return po_count, item_count
+
 def main():
     with app.app_context():
         db.drop_all()

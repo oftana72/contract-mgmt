@@ -170,13 +170,18 @@ def parse_float(val):
     except:
         return None
 
-with app.app_context():
-    db.create_all()
+def ensure_admin():
     if not User.query.filter_by(username='admin').first():
         admin = User(username='admin', is_admin=1)
         admin.set_password('admin')
         db.session.add(admin)
         db.session.commit()
+        return True
+    return False
+
+with app.app_context():
+    db.create_all()
+    ensure_admin()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -624,11 +629,26 @@ def po_statuses_delete(id):
     return redirect(url_for('po_statuses'))
 
 @app.route('/import', methods=['GET', 'POST'])
-@login_required
-def import_data():
+def import_route():
     if request.method == 'POST':
-        return redirect(url_for('po_list'))
+        if 'csv_file' not in request.files:
+            flash('No file selected', 'danger')
+            return render_template('import.html')
+        file = request.files['csv_file']
+        if not file.filename.endswith('.csv'):
+            flash('Please upload a .csv file', 'danger')
+            return render_template('import.html')
+        import csv, io
+        stream = io.StringIO(file.stream.read().decode('utf-8-sig'))
+        reader = csv.reader(stream)
+        rows = list(reader)
+        ensure_admin()
+        from import_data import process_rows
+        process_rows(rows)
+        flash(f'Import complete: {len(rows)} CSV rows processed', 'success')
+        return render_template('import.html', imported=True)
     return render_template('import.html')
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

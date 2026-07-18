@@ -6,11 +6,18 @@
         <div class="card">
             <div class="card-header"><i class="bi bi-upload"></i> Data Import</div>
             <div class="card-body">
-                <p>Data has been imported from the Google Sheet via the import script. See console for details.</p>
-                <p>To re-import data, run:</p>
-                <pre class="bg-light p-3"><code>cd {{ import_path or '.' }}
-python import_data.py</code></pre>
-                <a href="{{ url_for('po_list') }}" class="btn btn-primary">View Purchase Orders</a>
+                {% if imported %}
+                <div class="alert alert-success">Import completed successfully!</div>
+                <a href="{{ url_for('login') }}" class="btn btn-primary">Go to Login</a>
+                {% else %}
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="csv_file" class="form-label">Upload CSV file</label>
+                        <input class="form-control" type="file" name="csv_file" id="csv_file" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </form>
+                {% endif %}
             </div>
         </div>
     </div>
