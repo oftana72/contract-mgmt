@@ -11,6 +11,7 @@
 
                     <ul class="nav nav-tabs mb-3" id="editTabs" role="tablist">
                         <li class="nav-item"><button class="nav-link active" id="po-tab" data-bs-toggle="tab" data-bs-target="#poTab" type="button">PO Details</button></li>
+                        <li class="nav-item"><button class="nav-link" id="items-tab" data-bs-toggle="tab" data-bs-target="#itemsTab" type="button">Line Items</button></li>
                         <li class="nav-item"><button class="nav-link" id="lc-tab" data-bs-toggle="tab" data-bs-target="#lcTab" type="button">Letter of Credit</button></li>
                     </ul>
 
@@ -76,6 +77,38 @@
                             </div>
                         </div>
 
+                        <div class="tab-pane fade" id="itemsTab">
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle" id="itemsTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:30px"></th>
+                                            <th>Description</th>
+                                            <th style="width:80px">Unit</th>
+                                            <th style="width:100px">Quantity</th>
+                                            <th style="width:120px">Unit Price</th>
+                                            <th style="width:120px">Total Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in po.line_items %}
+                                        <tr>
+                                            <td><input type="checkbox" name="delete_item" value="{{ item.id }}" class="form-check-input" title="Delete"></td>
+                                            <td><input type="text" name="item_desc_{{ item.id }}" class="form-control form-control-sm" value="{{ item.description or '' }}"></td>
+                                            <td><input type="text" name="item_unit_{{ item.id }}" class="form-control form-control-sm" value="{{ item.unit or '' }}"></td>
+                                            <td><input type="number" step="any" name="item_qty_{{ item.id }}" class="form-control form-control-sm" value="{{ item.quantity or '' }}"></td>
+                                            <td><input type="number" step="any" name="item_up_{{ item.id }}" class="form-control form-control-sm" value="{{ item.unit_price or '' }}"></td>
+                                            <td><input type="number" step="any" name="item_tp_{{ item.id }}" class="form-control form-control-sm" value="{{ item.total_price or '' }}"></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addItemRow()"><i class="bi bi-plus-circle"></i> Add Item</button>
+                            <div id="newItemsContainer"></div>
+                            <small class="text-muted d-block mt-1">Check a row's box to delete. New items added below.</small>
+                        </div>
+
                         <div class="tab-pane fade" id="lcTab">
                             <div class="row g-3">
                                 <div class="col-md-4">
@@ -105,6 +138,28 @@
                         <a href="{{ url_for('po_detail', po_id=po.id) }}" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let newItemCount = 0;
+function addItemRow() {
+    var html = '<div class="row g-1 mt-2 border-start border-primary ps-2">' +
+        '<div class="col-4"><input type="text" name="new_item_desc" class="form-control form-control-sm" placeholder="Description"></div>' +
+        '<div class="col-2"><input type="text" name="new_item_unit" class="form-control form-control-sm" placeholder="Unit"></div>' +
+        '<div class="col-2"><input type="number" step="any" name="new_item_qty" class="form-control form-control-sm" placeholder="Qty"></div>' +
+        '<div class="col-2"><input type="number" step="any" name="new_item_up" class="form-control form-control-sm" placeholder="Unit Price"></div>' +
+        '<div class="col-2"><input type="number" step="any" name="new_item_tp" class="form-control form-control-sm" placeholder="Total Price"></div>' +
+        '</div>';
+    document.getElementById('newItemsContainer').insertAdjacentHTML('beforeend', html);
+    newItemCount++;
+}
+</script>
+{% endblock %}
             </div>
         </div>
     </div>

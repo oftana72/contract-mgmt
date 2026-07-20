@@ -337,6 +337,43 @@ def po_edit(po_id):
             lc.opened_date = parse_date(request.form.get('lc_opened_date'))
             lc.expiry_date = parse_date(request.form.get('lc_expiry_date'))
 
+        # Handle line items
+        delete_items = request.form.getlist('delete_item')
+        for item_id in delete_items:
+            item = LineItem.query.get(int(item_id))
+            if item and item.po_id == po.id:
+                db.session.delete(item)
+
+        existing_ids = set()
+        for item in po.line_items.all():
+            desc = request.form.get('item_desc_' + str(item.id), '').strip()
+            unit = request.form.get('item_unit_' + str(item.id), '').strip()
+            qty = parse_float(request.form.get('item_qty_' + str(item.id)))
+            up = parse_float(request.form.get('item_up_' + str(item.id)))
+            tp = parse_float(request.form.get('item_tp_' + str(item.id)))
+            if str(item.id) not in delete_items and desc:
+                item.description = desc
+                item.unit = unit
+                item.quantity = qty
+                item.unit_price = up
+                item.total_price = tp
+                existing_ids.add(item.id)
+
+        new_descs = request.form.getlist('new_item_desc')
+        new_units = request.form.getlist('new_item_unit')
+        new_qtys = request.form.getlist('new_item_qty')
+        new_ups = request.form.getlist('new_item_up')
+        new_tps = request.form.getlist('new_item_tp')
+        for i in range(len(new_descs)):
+            desc = new_descs[i].strip()
+            if desc:
+                unit = new_units[i].strip() if i < len(new_units) else ''
+                qty = parse_float(new_qtys[i]) if i < len(new_qtys) else None
+                up = parse_float(new_ups[i]) if i < len(new_ups) else None
+                tp = parse_float(new_tps[i]) if i < len(new_tps) else None
+                db.session.add(LineItem(po_id=po.id, description=desc, unit=unit,
+                    quantity=qty, unit_price=up, total_price=tp))
+
         db.session.commit()
         flash('PO updated', 'success')
         return redirect(url_for('po_detail', po_id=po.id))
