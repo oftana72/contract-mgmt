@@ -31,6 +31,8 @@
                             <li><a class="dropdown-item" href="{{ url_for('bi_officers') }}">BI Officers</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('shipment_officers') }}">Shipment Officers</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('po_statuses') }}">PO Statuses</a></li>
+                            {% if current_user.is_admin %}<li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('users_list') }}"><i class="bi bi-people"></i> Users</a></li>{% endif %}
                         </ul>
                     </li>
                     {% endif %}

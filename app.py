@@ -676,6 +676,83 @@ def po_statuses_delete(id):
     flash('Deleted', 'success')
     return redirect(url_for('po_statuses'))
 
+@app.route('/settings/users')
+@login_required
+def users_list():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    users = User.query.order_by(User.username).all()
+    return render_template('users.html', users=users)
+
+@app.route('/settings/users/create', methods=['POST'])
+@login_required
+def user_create():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    is_admin = 1 if request.form.get('is_admin') else 0
+    if not username or not password:
+        flash('Username and password required', 'danger')
+        return redirect(url_for('users_list'))
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists', 'warning')
+        return redirect(url_for('users_list'))
+    user = User(username=username, is_admin=is_admin)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    flash('User created', 'success')
+    return redirect(url_for('users_list'))
+
+@app.route('/settings/users/<int:id>/toggle-admin', methods=['POST'])
+@login_required
+def user_toggle_admin(id):
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    user = User.query.get_or_404(id)
+    if user.id == current_user.id:
+        flash('Cannot change your own admin status', 'warning')
+        return redirect(url_for('users_list'))
+    user.is_admin = 0 if user.is_admin else 1
+    db.session.commit()
+    flash('Updated', 'success')
+    return redirect(url_for('users_list'))
+
+@app.route('/settings/users/<int:id>/reset-password', methods=['POST'])
+@login_required
+def user_reset_password(id):
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    user = User.query.get_or_404(id)
+    password = request.form.get('password', '').strip()
+    if not password:
+        flash('Password required', 'danger')
+        return redirect(url_for('users_list'))
+    user.set_password(password)
+    db.session.commit()
+    flash('Password reset', 'success')
+    return redirect(url_for('users_list'))
+
+@app.route('/settings/users/<int:id>/delete', methods=['POST'])
+@login_required
+def user_delete(id):
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    user = User.query.get_or_404(id)
+    if user.id == current_user.id:
+        flash('Cannot delete yourself', 'warning')
+        return redirect(url_for('users_list'))
+    db.session.delete(user)
+    db.session.commit()
+    flash('User deleted', 'success')
+    return redirect(url_for('users_list'))
+
 @app.route('/import', methods=['GET', 'POST'])
 def import_route():
     if request.method == 'POST':
