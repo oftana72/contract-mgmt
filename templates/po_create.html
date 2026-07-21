@@ -8,6 +8,7 @@
             <ul class="nav nav-tabs mb-3" id="formTabs" role="tablist">
                 <li class="nav-item"><button class="nav-link active" id="po-tab" data-bs-toggle="tab" data-bs-target="#poTab" type="button">PO Details</button></li>
                 <li class="nav-item"><button class="nav-link" id="items-tab" data-bs-toggle="tab" data-bs-target="#itemsTab" type="button">Line Items</button></li>
+                <li class="nav-item"><button class="nav-link" id="pg-tab" data-bs-toggle="tab" data-bs-target="#pgTab" type="button">Performance Guarantee</button></li>
                 <li class="nav-item"><button class="nav-link" id="bank-tab" data-bs-toggle="tab" data-bs-target="#bankTab" type="button">Banking</button></li>
                 <li class="nav-item"><button class="nav-link" id="ship-tab" data-bs-toggle="tab" data-bs-target="#shipTab" type="button">Shipment</button></li>
             </ul>
@@ -78,10 +79,7 @@
                             <label class="form-label">PO Transferred Date</label>
                             <input type="date" name="po_transferred_date" class="form-control">
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label">PG Expiry Date</label>
-                            <input type="date" name="pg_expiry_date" class="form-control">
-                        </div>
+
                         <div class="col-md-3">
                             <label class="form-label">BI Officer</label>
                             <input type="text" name="bi_officer_name" class="form-control" list="biOfficerList" autocomplete="off">
@@ -128,6 +126,35 @@
                         </table>
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-primary" onclick="addItemRow()"><i class="bi bi-plus"></i> Add Item</button>
+                </div>
+
+                <div class="tab-pane fade" id="pgTab">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">PG Expiry Date</label>
+                            <input type="date" name="pg_expiry_date" class="form-control">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">PG Status</label>
+                            <select name="pg_status" class="form-select" id="pgStatus" onchange="togglePgFields()">
+                                <option value="">--</option>
+                                <option value="Released">Released</option>
+                                <option value="Confiscated">Confiscated</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 pg-released-field" style="display:none">
+                            <label class="form-label">Release Date</label>
+                            <input type="date" name="pg_release_date" class="form-control">
+                        </div>
+                        <div class="col-md-3 pg-released-field" style="display:none">
+                            <label class="form-label">Received By</label>
+                            <input type="text" name="pg_received_by" class="form-control">
+                        </div>
+                        <div class="col-12 pg-confiscated-field" style="display:none">
+                            <label class="form-label">Confiscation Reason</label>
+                            <textarea name="pg_confiscation_reason" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="tab-pane fade" id="bankTab">
@@ -184,6 +211,15 @@
 </div>
 
 <script>
+function togglePgFields() {
+    var status = document.getElementById('pgStatus').value;
+    document.querySelectorAll('.pg-released-field').forEach(function(el) {
+        el.style.display = (status === 'Released') ? 'block' : 'none';
+    });
+    document.querySelectorAll('.pg-confiscated-field').forEach(function(el) {
+        el.style.display = (status === 'Confiscated') ? 'block' : 'none';
+    });
+}
 function addItemRow() {
     const tbody = document.querySelector('#itemsTable tbody');
     const row = document.createElement('tr');

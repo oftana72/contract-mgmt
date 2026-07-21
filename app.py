@@ -89,6 +89,10 @@ class PurchaseOrder(db.Model):
     letter_of_credits = db.relationship('LetterOfCredit', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     shipments = db.relationship('Shipment', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     pg_expiry_date = db.Column(Date)
+    pg_status = db.Column(String(20))
+    pg_release_date = db.Column(Date)
+    pg_received_by = db.Column(String(200))
+    pg_confiscation_reason = db.Column(Text)
 
     @property
     def pg_days_left(self):
@@ -190,16 +194,17 @@ def ensure_admin():
 with app.app_context():
     db.create_all()
     ensure_admin()
-    # Migration: add pg_expiry_date column if missing, backfill from PGs
+    # Migration: add missing columns, backfill
     try:
         from sqlalchemy import inspect as sa_inspect
         inspector = sa_inspect(db.engine)
         cols = [c['name'] for c in inspector.get_columns('purchase_orders')]
-        if 'pg_expiry_date' not in cols:
-            db.session.execute(db.text('ALTER TABLE purchase_orders ADD COLUMN pg_expiry_date DATE'))
-            print('Added pg_expiry_date column')
+        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT')]:
+            if col not in cols:
+                db.session.execute(db.text(f'ALTER TABLE purchase_orders ADD COLUMN {col} {coltype}'))
+                print(f'Added {col} column')
     except Exception as e:
-        print('Migration (add column): ' + str(e))
+        print('Migration (add columns): ' + str(e))
     try:
         db.session.execute(db.text(
             'UPDATE purchase_orders po '
@@ -340,6 +345,10 @@ def po_edit(po_id):
         po.currency = request.form.get('currency', '').strip()
         po.remark = request.form.get('remark', '')
         po.pg_expiry_date = parse_date(request.form.get('pg_expiry_date'))
+        po.pg_status = request.form.get('pg_status', '').strip() or None
+        po.pg_release_date = parse_date(request.form.get('pg_release_date'))
+        po.pg_received_by = request.form.get('pg_received_by', '').strip() or None
+        po.pg_confiscation_reason = request.form.get('pg_confiscation_reason', '').strip() or None
 
         bi_name = request.form.get('bi_officer_name', '').strip()
         if bi_name:
@@ -588,7 +597,11 @@ def po_create():
             biofficer_id=bi_officer.id if bi_officer else None,
             shipment_officer_id=sh_officer.id if sh_officer else None,
             status_id=po_status.id if po_status else None,
-            pg_expiry_date=parse_date(request.form.get('pg_expiry_date'))
+            pg_expiry_date=parse_date(request.form.get('pg_expiry_date')),
+            pg_status=request.form.get('pg_status', '').strip() or None,
+            pg_release_date=parse_date(request.form.get('pg_release_date')),
+            pg_received_by=request.form.get('pg_received_by', '').strip() or None,
+            pg_confiscation_reason=request.form.get('pg_confiscation_reason', '').strip() or None
         )
         db.session.add(po)
         db.session.flush()

@@ -98,13 +98,26 @@
             <div class="card-header"><i class="bi bi-shield-check"></i> Performance Guarantee</div>
             <div class="card-body">
                 <div class="mb-1"><strong>Expiry Date:</strong> {{ po.pg_expiry_date.strftime('%Y-%m-%d') if po.pg_expiry_date else '-' }}</div>
-                <div class="mb-0"><strong>Days Left:</strong>
+                <div class="mb-1"><strong>Days Left:</strong>
                     {% if po.pg_days_left is not none %}
                     <span class="badge {% if po.pg_days_left < 0 %}bg-danger{% elif po.pg_days_left < 30 %}bg-warning text-dark{% else %}bg-success{% endif %}">
                         {{ po.pg_days_left }}
                     </span>
                     {% else %}-{% endif %}
                 </div>
+                {% if po.pg_status %}
+                <div class="mb-1"><strong>Status:</strong>
+                    <span class="badge {% if po.pg_status == 'Released' %}bg-success{% elif po.pg_status == 'Confiscated' %}bg-danger{% else %}bg-secondary{% endif %}">
+                        {{ po.pg_status }}
+                    </span>
+                </div>
+                {% if po.pg_status == 'Released' %}
+                <div class="mb-1"><strong>Release Date:</strong> {{ po.pg_release_date.strftime('%Y-%m-%d') if po.pg_release_date else '-' }}</div>
+                <div class="mb-0"><strong>Received By:</strong> {{ po.pg_received_by or '-' }}</div>
+                {% elif po.pg_status == 'Confiscated' %}
+                <div class="mb-0"><strong>Confiscation Reason:</strong> {{ po.pg_confiscation_reason or '-' }}</div>
+                {% endif %}
+                {% endif %}
             </div>
         </div>
 
