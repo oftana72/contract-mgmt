@@ -407,27 +407,25 @@ def po_edit(po_id):
             unit = request.form.get('item_unit_' + str(item.id), '').strip()
             qty = parse_float(request.form.get('item_qty_' + str(item.id)))
             up = parse_float(request.form.get('item_up_' + str(item.id)))
-            tp = parse_float(request.form.get('item_tp_' + str(item.id)))
             if str(item.id) not in delete_items and desc:
                 item.description = desc
                 item.unit = unit
                 item.quantity = qty
                 item.unit_price = up
-                item.total_price = tp
+                item.total_price = (qty * up) if qty and up else None
                 existing_ids.add(item.id)
 
         new_descs = request.form.getlist('new_item_desc')
         new_units = request.form.getlist('new_item_unit')
         new_qtys = request.form.getlist('new_item_qty')
         new_ups = request.form.getlist('new_item_up')
-        new_tps = request.form.getlist('new_item_tp')
         for i in range(len(new_descs)):
             desc = new_descs[i].strip()
             if desc:
                 unit = new_units[i].strip() if i < len(new_units) else ''
                 qty = parse_float(new_qtys[i]) if i < len(new_qtys) else None
                 up = parse_float(new_ups[i]) if i < len(new_ups) else None
-                tp = parse_float(new_tps[i]) if i < len(new_tps) else None
+                tp = (qty * up) if qty and up else None
                 db.session.add(LineItem(po_id=po.id, description=desc, unit=unit,
                     quantity=qty, unit_price=up, total_price=tp))
 
