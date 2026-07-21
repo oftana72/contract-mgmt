@@ -112,7 +112,7 @@
                             </span>
                             {% endif %}</td>
                         <td>{% if po.lc_age_days is not none %}
-                            <span class="badge {% if po.lc_age_days > 365 %}bg-danger{% elif po.lc_age_days > 180 %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                            <span class="badge {% if po.lc_age_days > 90 %}bg-danger{% elif po.lc_age_days >= 70 %}bg-warning text-dark{% else %}bg-success{% endif %}">
                                 {{ po.lc_age_days }}d
                             </span>
                             {% endif %}</td>
