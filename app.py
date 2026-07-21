@@ -101,6 +101,14 @@ class PurchaseOrder(db.Model):
         delta = (self.pg_expiry_date - date.today()).days
         return delta
 
+    @property
+    def lc_age_days(self):
+        lc = self.letter_of_credits.first()
+        if not lc or not lc.opened_date:
+            return None
+        delta = (date.today() - lc.opened_date).days
+        return delta
+
 class LineItem(db.Model):
     __tablename__ = 'line_items'
     id = db.Column(Integer, primary_key=True)

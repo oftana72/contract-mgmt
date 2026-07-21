@@ -88,6 +88,13 @@
                 <div class="mb-1"><strong>Status:</strong> {{ lc.opening_status or '-' }}</div>
                 <div class="mb-1"><strong>Opened:</strong> {{ lc.opened_date.strftime('%Y-%m-%d') if lc.opened_date else '-' }}</div>
                 <div class="mb-1"><strong>Expiry:</strong> {{ lc.expiry_date.strftime('%Y-%m-%d') if lc.expiry_date else '-' }}</div>
+                <div class="mb-0"><strong>Age:</strong>
+                    {% if po.lc_age_days is not none %}
+                    <span class="badge {% if po.lc_age_days > 365 %}bg-danger{% elif po.lc_age_days > 180 %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                        {{ po.lc_age_days }} days
+                    </span>
+                    {% else %}-{% endif %}
+                </div>
                 {% else %}
                 <p class="text-muted mb-0">No LC record</p>
                 {% endif %}
