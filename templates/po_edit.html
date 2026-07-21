@@ -48,6 +48,14 @@
                                     <input type="date" name="po_transferred_date" class="form-control" value="{{ po.po_transferred_date.strftime('%Y-%m-%d') if po.po_transferred_date else '' }}">
                                 </div>
                                 <div class="col-md-3">
+                                    <label class="form-label">PG Expiry Date</label>
+                                    <input type="date" name="pg_expiry_date" class="form-control" value="{{ po.pg_expiry_date.strftime('%Y-%m-%d') if po.pg_expiry_date else '' }}">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Days Left</label>
+                                    <input type="text" class="form-control" value="{{ po.pg_days_left if po.pg_days_left is not none else '' }}" readonly>
+                                </div>
+                                <div class="col-md-3">
                                     <label class="form-label">BI Officer</label>
                                     <input type="text" name="bi_officer_name" class="form-control" list="biOfficerList" autocomplete="off" value="{{ po.biofficer.name if po.biofficer else '' }}">
                                     <datalist id="biOfficerList">

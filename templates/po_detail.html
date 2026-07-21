@@ -6,7 +6,12 @@
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-cart"></i> PO #{{ po.po_number or po.id }}</span>
+                <div>
                 <a href="{{ url_for('po_edit', po_id=po.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Edit</a>
+                {% if current_user.is_admin %}
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal"><i class="bi bi-trash"></i> Delete</button>
+                {% endif %}
+                </div>
             </div>
             <div class="card-body">
                 <div class="row mb-2">
@@ -90,6 +95,20 @@
         </div>
 
         <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-shield-check"></i> Performance Guarantee</div>
+            <div class="card-body">
+                <div class="mb-1"><strong>Expiry Date:</strong> {{ po.pg_expiry_date.strftime('%Y-%m-%d') if po.pg_expiry_date else '-' }}</div>
+                <div class="mb-0"><strong>Days Left:</strong>
+                    {% if po.pg_days_left is not none %}
+                    <span class="badge {% if po.pg_days_left < 0 %}bg-danger{% elif po.pg_days_left < 30 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                        {{ po.pg_days_left }}
+                    </span>
+                    {% else %}-{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
             <div class="card-header"><i class="bi bi-truck"></i> Shipment</div>
             <div class="card-body">
                 {% set sh = po.shipments.first() %}
@@ -136,4 +155,36 @@
         </div>
     </div>
 </div>
+
+<!-- Delete Confirmation Modal -->
+{% if current_user.is_admin %}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Delete Purchase Order</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong>PO #{{ po.po_number or po.id }}</strong>?</p>
+                <p class="text-danger mb-0"><i class="bi bi-info-circle"></i> This will permanently delete:</p>
+                <ul class="text-danger">
+                    <li>The purchase order record</li>
+                    <li>All {{ po.line_items.count() }} line item(s)</li>
+                    <li>Letter of Credit record</li>
+                    <li>Performance guarantees</li>
+                    <li>Shipment record</li>
+                </ul>
+                <p class="text-danger fw-bold mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('po_delete', po_id=po.id) }}">
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete PO</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

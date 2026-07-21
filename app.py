@@ -88,6 +88,14 @@ class PurchaseOrder(db.Model):
     performance_guarantees = db.relationship('PerformanceGuarantee', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     letter_of_credits = db.relationship('LetterOfCredit', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     shipments = db.relationship('Shipment', backref='po', lazy='dynamic', cascade='all, delete-orphan')
+    pg_expiry_date = db.Column(Date)
+
+    @property
+    def pg_days_left(self):
+        if not self.pg_expiry_date:
+            return None
+        delta = (self.pg_expiry_date - date.today()).days
+        return delta
 
 class LineItem(db.Model):
     __tablename__ = 'line_items'
@@ -280,6 +288,19 @@ def po_detail(po_id):
     po = PurchaseOrder.query.get_or_404(po_id)
     return render_template('po_detail.html', po=po)
 
+@app.route('/pos/<int:po_id>/delete', methods=['POST'])
+@login_required
+def po_delete(po_id):
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('po_detail', po_id=po_id))
+    po = PurchaseOrder.query.get_or_404(po_id)
+    po_number = po.po_number or str(po.id)
+    db.session.delete(po)
+    db.session.commit()
+    flash(f'PO {po_number} and all associated data deleted', 'success')
+    return redirect(url_for('po_list'))
+
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):
@@ -292,6 +313,7 @@ def po_edit(po_id):
         po.total_po_amount = parse_float(request.form.get('total_po_amount'))
         po.currency = request.form.get('currency', '').strip()
         po.remark = request.form.get('remark', '')
+        po.pg_expiry_date = parse_date(request.form.get('pg_expiry_date'))
 
         bi_name = request.form.get('bi_officer_name', '').strip()
         if bi_name:
@@ -539,7 +561,8 @@ def po_create():
             remark=request.form.get('remark', '').strip(),
             biofficer_id=bi_officer.id if bi_officer else None,
             shipment_officer_id=sh_officer.id if sh_officer else None,
-            status_id=po_status.id if po_status else None
+            status_id=po_status.id if po_status else None,
+            pg_expiry_date=parse_date(request.form.get('pg_expiry_date'))
         )
         db.session.add(po)
         db.session.flush()
