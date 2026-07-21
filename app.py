@@ -513,10 +513,12 @@ def po_create():
         po_number = request.form.get('po_number', '').strip()
         if not po_number:
             flash('PO Number is required', 'danger')
+            item_descriptions = [r[0] for r in db.session.query(distinct(LineItem.description)).filter(LineItem.description.isnot(None), LineItem.description != '').order_by(LineItem.description).all()]
             return render_template('po_create.html',
                 suppliers=Supplier.query.order_by(Supplier.name).all(),
                 agents=LocalAgent.query.order_by(LocalAgent.name).all(),
-                budgets=BudgetSource.query.order_by(BudgetSource.name).all())
+                budgets=BudgetSource.query.order_by(BudgetSource.name).all(),
+                item_descriptions=item_descriptions)
 
         supplier_name = request.form.get('supplier_name', '').strip()
         supplier_country = request.form.get('supplier_country', '').strip()
@@ -645,13 +647,15 @@ def po_create():
         flash(f'Contract {po_number} created successfully!', 'success')
         return redirect(url_for('po_detail', po_id=po.id))
 
+    item_descriptions = [r[0] for r in db.session.query(distinct(LineItem.description)).filter(LineItem.description.isnot(None), LineItem.description != '').order_by(LineItem.description).all()]
     return render_template('po_create.html',
         suppliers=Supplier.query.order_by(Supplier.name).all(),
         agents=LocalAgent.query.order_by(LocalAgent.name).all(),
         budgets=BudgetSource.query.order_by(BudgetSource.name).all(),
         bi_officers=BIOfficer.query.order_by(BIOfficer.name).all(),
         shipment_officers=ShipmentOfficer.query.order_by(ShipmentOfficer.name).all(),
-        po_statuses=POStatus.query.order_by(POStatus.name).all())
+        po_statuses=POStatus.query.order_by(POStatus.name).all(),
+        item_descriptions=item_descriptions)
 
 @app.route('/items')
 @login_required
