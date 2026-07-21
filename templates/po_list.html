@@ -169,11 +169,18 @@ $(document).ready(function() {
             });
         }
     });
+    var dt = window.innerWidth < 768;
     var poTable = $('#poTable').DataTable({
         paging: false,
         info: false,
+        ordering: !dt,
+        scrollX: dt,
         order: [[9, 'desc'], [1, 'desc']],
         columnDefs: [{ orderable: false, targets: [0, 12] }]
+    });
+    $(window).on('resize', function() {
+        var newDt = window.innerWidth < 768;
+        if (newDt !== dt) { location.reload(); }
     });
 });
 </script>
