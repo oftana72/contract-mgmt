@@ -93,6 +93,8 @@ class PurchaseOrder(db.Model):
     pg_release_date = db.Column(Date)
     pg_received_by = db.Column(String(200))
     pg_confiscation_reason = db.Column(Text)
+    status_changed_by = db.Column(String(80))
+    status_changed_at = db.Column(Date)
 
     @property
     def pg_days_left(self):
@@ -381,6 +383,7 @@ def po_edit(po_id):
             po.shipment_officer_id = None
 
         st_name = request.form.get('po_status', '').strip()
+        old_status = po.po_status.name if po.po_status else None
         if st_name:
             st = POStatus.query.filter_by(name=st_name).first()
             if not st:
@@ -390,6 +393,10 @@ def po_edit(po_id):
             po.status_id = st.id
         else:
             po.status_id = None
+        new_status = st_name if st_name else None
+        if old_status != new_status:
+            po.status_changed_by = current_user.username
+            po.status_changed_at = date.today()
 
         lc = po.letter_of_credits.first()
         lc_status = request.form.get('lc_status', '').strip()

@@ -70,6 +70,12 @@
                         {% else %}-{% endif %}
                     </div>
                 </div>
+                {% if po.status_changed_by %}
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-bold">Status Changed By:</div>
+                    <div class="col-md-8">{{ po.status_changed_by }} on {{ po.status_changed_at.strftime('%Y-%m-%d') if po.status_changed_at else '-' }}</div>
+                </div>
+                {% endif %}
                 {% if po.remark %}
                 <div class="row mb-2">
                     <div class="col-md-4 fw-bold">Remark:</div>
