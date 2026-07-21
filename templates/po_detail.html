@@ -107,7 +107,7 @@
                 <div class="mb-1"><strong>Expiry Date:</strong> {{ po.pg_expiry_date.strftime('%Y-%m-%d') if po.pg_expiry_date else '-' }}</div>
                 <div class="mb-1"><strong>Days Left:</strong>
                     {% if po.pg_days_left is not none %}
-                    <span class="badge {% if po.pg_days_left < 1 %}bg-danger{% elif po.pg_days_left <= 30 %}bg-warning text-dark{% elif po.pg_days_left <= 60 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                    <span class="badge {% if po.pg_days_left < 1 %}bg-danger{% elif po.pg_days_left <= 30 %}bg-amber{% elif po.pg_days_left <= 60 %}bg-warning text-dark{% else %}bg-success{% endif %}">
                         {{ po.pg_days_left }}
                     </span>
                     {% else %}-{% endif %}

@@ -21,3 +21,4 @@ pre { border-radius: 6px; }
   .pagination { flex-wrap: wrap; }
   .year-summary .col-md-2 { width: 33.33%; }
 }
+.bg-amber { background-color: #ffb300 !important; color: #212529 !important; }
