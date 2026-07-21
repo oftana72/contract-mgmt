@@ -190,6 +190,32 @@ def ensure_admin():
 with app.app_context():
     db.create_all()
     ensure_admin()
+    # Migration: add pg_expiry_date column if missing, backfill from PGs
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(db.engine)
+        cols = [c['name'] for c in inspector.get_columns('purchase_orders')]
+        if 'pg_expiry_date' not in cols:
+            db.session.execute(db.text('ALTER TABLE purchase_orders ADD COLUMN pg_expiry_date DATE'))
+            print('Added pg_expiry_date column')
+    except Exception as e:
+        print('Migration (add column): ' + str(e))
+    try:
+        db.session.execute(db.text(
+            'UPDATE purchase_orders po '
+            'SET pg_expiry_date = pg.expiry_date '
+            'FROM performance_guarantees pg '
+            'WHERE po.id = pg.po_id '
+            'AND pg.expiry_date IS NOT NULL '
+            'AND po.pg_expiry_date IS NULL'
+        ))
+        db.session.commit()
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except:
+            pass
+        print('Migration (backfill): ' + str(e))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
