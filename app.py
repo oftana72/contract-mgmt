@@ -209,7 +209,7 @@ with app.app_context():
         from sqlalchemy import inspect as sa_inspect
         inspector = sa_inspect(db.engine)
         cols = [c['name'] for c in inspector.get_columns('purchase_orders')]
-        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT')]:
+        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT'), ('status_changed_by', 'VARCHAR(80)'), ('status_changed_at', 'DATE')]:
             if col not in cols:
                 db.session.execute(db.text(f'ALTER TABLE purchase_orders ADD COLUMN {col} {coltype}'))
                 print(f'Added {col} column')
