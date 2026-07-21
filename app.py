@@ -713,6 +713,9 @@ def api_agents():
 @app.route('/settings/bi-officers', methods=['GET', 'POST'])
 @login_required
 def bi_officers():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         if name:
@@ -738,6 +741,9 @@ def bi_officer_delete(id):
 @app.route('/settings/shipment-officers', methods=['GET', 'POST'])
 @login_required
 def shipment_officers():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         if name:
@@ -763,6 +769,9 @@ def shipment_officer_delete(id):
 @app.route('/settings/statuses', methods=['GET', 'POST'])
 @login_required
 def po_statuses():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         if name:
