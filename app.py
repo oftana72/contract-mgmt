@@ -645,11 +645,16 @@ def admin_resequence():
     if not current_user.is_admin:
         flash('Admin access required', 'danger')
         return redirect(url_for('index'))
-    all_pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
-    for i, po in enumerate(all_pos, start=1):
-        po.serial_number = i
-    db.session.commit()
-    flash(f'Resequenced {len(all_pos)} serial numbers from 1', 'success')
+    import traceback
+    try:
+        all_pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
+        for i, po in enumerate(all_pos, start=1):
+            po.serial_number = i
+        db.session.commit()
+        flash(f'Resequenced {len(all_pos)} serial numbers from 1', 'success')
+    except Exception as e:
+        app.logger.error(f'RESEQUENCE ERROR: {e}\n{traceback.format_exc()}')
+        flash(f'Resequence error: {e}', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
