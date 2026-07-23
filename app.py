@@ -216,14 +216,29 @@ with app.app_context():
     except Exception as e:
         print('Migration (add columns): ' + str(e))
     try:
-        db.session.execute(db.text(
-            'UPDATE purchase_orders po '
-            'SET pg_expiry_date = pg.expiry_date '
-            'FROM performance_guarantees pg '
-            'WHERE po.id = pg.po_id '
-            'AND pg.expiry_date IS NOT NULL '
-            'AND po.pg_expiry_date IS NULL'
-        ))
+        from sqlalchemy import text
+        is_pg = 'postgresql' in str(db.engine.url)
+        if is_pg:
+            db.session.execute(text(
+                'UPDATE purchase_orders po '
+                'SET pg_expiry_date = pg.expiry_date '
+                'FROM performance_guarantees pg '
+                'WHERE po.id = pg.po_id '
+                'AND pg.expiry_date IS NOT NULL '
+                'AND po.pg_expiry_date IS NULL'
+            ))
+        else:
+            db.session.execute(text(
+                'UPDATE purchase_orders po '
+                'SET pg_expiry_date = ('
+                '  SELECT pg.expiry_date FROM performance_guarantees pg '
+                '  WHERE po.id = pg.po_id AND pg.expiry_date IS NOT NULL '
+                '  LIMIT 1)'
+                'WHERE po.pg_expiry_date IS NULL '
+                'AND EXISTS ('
+                '  SELECT 1 FROM performance_guarantees pg '
+                '  WHERE po.id = pg.po_id AND pg.expiry_date IS NOT NULL)'
+            ))
         db.session.commit()
     except Exception as e:
         try:
@@ -231,6 +246,24 @@ with app.app_context():
         except:
             pass
         print('Migration (backfill): ' + str(e))
+    # Startup import from bundled CSVs (PostgreSQL/Render only)
+    try:
+        is_pg = 'postgresql' in str(db.engine.url)
+        po_count = PurchaseOrder.query.count()
+        if is_pg and po_count < 1700:
+            csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
+            csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
+            if os.path.exists(csv_2017) and os.path.exists(csv_2016):
+                print(f'Startup import: DB has {po_count} POs, importing from CSVs...')
+                sys.path.insert(0, os.path.dirname(__file__))
+                from import_csv_data import import_csv
+                import_csv(csv_2017)
+                import_csv(csv_2016)
+                print('Startup import complete.')
+            else:
+                print(f'CSV files not found at {csv_2017} / {csv_2016}')
+    except Exception as e:
+        print(f'Startup import error: {e}')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
