@@ -408,6 +408,25 @@ def po_detail(po_id):
     po = PurchaseOrder.query.get_or_404(po_id)
     return render_template('po_detail.html', po=po)
 
+@app.route('/admin/cleanup', methods=['GET'])
+@login_required
+def admin_cleanup():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    remove_sns = [3051,3037,3036,3035,3033,3032,3031,3029,3028,3026,3025,3024,3023,3022,3015,3014,3013,3012,3011,3010,3009,3008,3007,3006,3005,3004,3003,3001,3000,2999,2998,2997,2996,2995,2994,2993,2992,2991,2990,2988,2987,2986,2985,2984,2983,2982,2981,2980,2979,2978,2977,2976,2975,2974,2973,2972,2971,2967,2961,2960,2958,2957,2954,2953,2952,2951,2950,2949,2948,2947,2946,2945,2944,2943,2942,2941,2940,2939,2938,2937,2936,2934,2933,2932,2931,2930,2929,2928,2927,2926,2925,2924,2923,2922,2921,2920,2919,2918,2917,2916,2776,2769,2759,2758,2757,2698,2648,2647,2644,2029,1454,1453,1452,1451,1450,1449,1448,1447,1446,1348,1337,895,243]
+    to_remove = PurchaseOrder.query.filter(PurchaseOrder.serial_number.in_(remove_sns)).all()
+    count = len(to_remove)
+    for po in to_remove:
+        PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+        LetterOfCredit.query.filter_by(po_id=po.id).delete()
+        Shipment.query.filter_by(po_id=po.id).delete()
+        LineItem.query.filter_by(po_id=po.id).delete()
+        db.session.delete(po)
+    db.session.commit()
+    flash(f'Cleanup: removed {count} POs', 'success')
+    return redirect(url_for('index'))
+
 @app.route('/pos/<int:po_id>/delete', methods=['POST'])
 @login_required
 def po_delete(po_id):
