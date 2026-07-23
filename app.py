@@ -350,6 +350,41 @@ with app.app_context():
                 db.session.commit()
                 print(f'  Cleanup: removed {len(to_remove)} POs by serial number')
 
+            # ---- Dedup by PO number (keep most complete) ----
+            dup_po_nums = db.session.query(
+                PurchaseOrder.po_number,
+                func.count(PurchaseOrder.id)
+            ).filter(
+                PurchaseOrder.po_number != None,
+                PurchaseOrder.po_number != ''
+            ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
+            total_dup_removed = 0
+            for po_num, cnt in dup_po_nums:
+                pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
+                def po_score(p):
+                    f = sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
+                                        p.tender_reference, p.total_po_amount, p.currency, p.remark] if v)
+                    children = sum([
+                        LineItem.query.filter_by(po_id=p.id).count(),
+                        PerformanceGuarantee.query.filter_by(po_id=p.id).count(),
+                        LetterOfCredit.query.filter_by(po_id=p.id).count(),
+                        Shipment.query.filter_by(po_id=p.id).count()
+                    ])
+                    return (f, children, p.id)
+                best = max(pos, key=po_score)
+                for p in pos:
+                    if p.id == best.id:
+                        continue
+                    LineItem.query.filter_by(po_id=p.id).delete()
+                    PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
+                    LetterOfCredit.query.filter_by(po_id=p.id).delete()
+                    Shipment.query.filter_by(po_id=p.id).delete()
+                    db.session.delete(p)
+                    total_dup_removed += 1
+            if total_dup_removed:
+                db.session.commit()
+                print(f'  Dedup PO numbers: removed {total_dup_removed} duplicates')
+
             # ---- Resequence serial numbers from 1 ----
             total = PurchaseOrder.query.count()
             max_sn = db.session.query(func.max(PurchaseOrder.serial_number)).scalar() or 0
@@ -498,13 +533,47 @@ def admin_cleanup():
 
     db.session.commit()
 
+    # Dedup by PO number (keep most complete)
+    dup_po_nums = db.session.query(
+        PurchaseOrder.po_number,
+        sa_func.count(PurchaseOrder.id)
+    ).filter(
+        PurchaseOrder.po_number != None,
+        PurchaseOrder.po_number != ''
+    ).group_by(PurchaseOrder.po_number).having(sa_func.count(PurchaseOrder.id) > 1).all()
+    dup_removed = 0
+    for po_num, cnt in dup_po_nums:
+        pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
+        def po_score(p):
+            f = sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
+                                p.tender_reference, p.total_po_amount, p.currency, p.remark] if v)
+            children = sum([
+                LineItem.query.filter_by(po_id=p.id).count(),
+                PerformanceGuarantee.query.filter_by(po_id=p.id).count(),
+                LetterOfCredit.query.filter_by(po_id=p.id).count(),
+                Shipment.query.filter_by(po_id=p.id).count()
+            ])
+            return (f, children, p.id)
+        best = max(pos, key=po_score)
+        for p in pos:
+            if p.id == best.id:
+                continue
+            LineItem.query.filter_by(po_id=p.id).delete()
+            PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
+            LetterOfCredit.query.filter_by(po_id=p.id).delete()
+            Shipment.query.filter_by(po_id=p.id).delete()
+            db.session.delete(p)
+            dup_removed += 1
+    if dup_removed:
+        db.session.commit()
+
     # Resequence serial numbers from 1
     all_pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
     for i, po in enumerate(all_pos, start=1):
         po.serial_number = i
     db.session.commit()
 
-    flash(f'Cleanup complete: removed {total} POs, resequenced {len(all_pos)} serial numbers from 1', 'success')
+    flash(f'Cleanup complete: removed {total} POs, deduped {dup_removed} PO numbers, resequenced {len(all_pos)}', 'success')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/delete', methods=['POST'])
