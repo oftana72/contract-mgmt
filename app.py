@@ -821,7 +821,7 @@ def reports():
     ).filter(PurchaseOrder.budget_year.isnot(None)
     ).group_by(BudgetSource.name, db.text('y')).order_by(BudgetSource.name, db.text('y desc')).all()
 
-    status_year_data = db.session.query(
+    raw_status = db.session.query(
         POStatus.name,
         PurchaseOrder.budget_year,
         func.count(PurchaseOrder.id)
@@ -831,6 +831,19 @@ def reports():
     ).order_by(PurchaseOrder.budget_year).all()
 
     status_names = ['Released', 'Confiscated', 'Replaced by Other PO']
+    status_by_year = {}
+    years_set = set()
+    for name, y, cnt in raw_status:
+        years_set.add(y)
+        status_by_year.setdefault(y, {})[name or ''] = cnt
+    years = sorted(years_set)
+    status_year_data = []
+    for y in years:
+        row = {'year': y}
+        for s in status_names:
+            row[s] = status_by_year.get(y, {}).get(s, 0)
+        row['no_status'] = status_by_year.get(y, {}).get('', 0)
+        status_year_data.append(row)
 
     return render_template('reports.html', budget_data=budget_data,
                           supplier_data=supplier_data, currency_data=currency_data,

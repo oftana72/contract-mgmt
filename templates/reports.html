@@ -70,18 +70,13 @@
                     <table class="table mb-0">
                         <thead><tr><th>Budget Year</th>{% for s in status_names %}<th>{{ s }}</th>{% endfor %}<th>No Status</th></tr></thead>
                         <tbody>
-                            {% set years = status_year_data|map(attribute=1)|unique|sort %}
-                            {% for y in years %}
-                            {% set rows_for_y = status_year_data|selectattr(1,'equalto',y)|list %}
-                            {% set total = rows_for_y|sum(attribute=2) %}
+                            {% for row in status_year_data %}
                             <tr>
-                                <td><strong>{{ y }}</strong></td>
+                                <td><strong>{{ row.year }}</strong></td>
                                 {% for s in status_names %}
-                                {% set match = rows_for_y|selectattr(0,'equalto',s)|first %}
-                                <td>{{ match[2] if match else 0 }}</td>
+                                <td>{{ row[s] }}</td>
                                 {% endfor %}
-                                {% set no_status = rows_for_y|selectattr(0,'none')|map(attribute=2)|sum %}
-                                <td>{{ no_status }}</td>
+                                <td>{{ row.no_status }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
