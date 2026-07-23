@@ -251,8 +251,8 @@ def import_csv(filepath):
             )
             db.session.add(sh)
 
-        # Periodic flush
-        if po_count % 50 == 0:
+        # Periodic flush (less frequent for speed)
+        if po_count % 200 == 0:
             db.session.commit()
             print(f"  ... {po_count} POs, {item_count} items committed")
 

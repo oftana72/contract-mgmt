@@ -249,19 +249,20 @@ with app.app_context():
     # Startup import from bundled CSVs (PostgreSQL/Render only)
     try:
         is_pg = 'postgresql' in str(db.engine.url)
-        po_count = PurchaseOrder.query.count()
-        if is_pg and po_count < 1700:
+        if not is_pg:
+            pass
+        else:
             csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
             csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
-            if os.path.exists(csv_2017) and os.path.exists(csv_2016):
-                print(f'Startup import: DB has {po_count} POs, importing from CSVs...')
-                sys.path.insert(0, os.path.dirname(__file__))
+            has_2017 = PurchaseOrder.query.filter_by(serial_number=3054).first() is not None
+            has_2016 = PurchaseOrder.query.filter_by(serial_number=1509).first() is not None
+            sys.path.insert(0, os.path.dirname(__file__))
+            if not has_2017 and os.path.exists(csv_2017):
                 from import_csv_data import import_csv
                 import_csv(csv_2017)
+            if not has_2016 and os.path.exists(csv_2016):
+                from import_csv_data import import_csv
                 import_csv(csv_2016)
-                print('Startup import complete.')
-            else:
-                print(f'CSV files not found at {csv_2017} / {csv_2016}')
     except Exception as e:
         print(f'Startup import error: {e}')
 
