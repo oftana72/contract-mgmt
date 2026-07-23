@@ -349,6 +349,16 @@ with app.app_context():
             if to_remove:
                 db.session.commit()
                 print(f'  Cleanup: removed {len(to_remove)} POs by serial number')
+
+            # ---- Resequence serial numbers from 1 ----
+            total = PurchaseOrder.query.count()
+            max_sn = db.session.query(func.max(PurchaseOrder.serial_number)).scalar() or 0
+            if total > 0 and max_sn > total * 1.5:
+                pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
+                for i, po in enumerate(pos, start=1):
+                    po.serial_number = i
+                db.session.commit()
+                print(f'  Resequenced {total} serial numbers from 1')
     except Exception as e:
         print(f'Startup init error: {e}')
 
@@ -487,7 +497,14 @@ def admin_cleanup():
     total += len(to_remove)
 
     db.session.commit()
-    flash(f'Cleanup complete: removed {total} POs ({len(no_po)} empty PO number, {len(to_remove)} by serial)', 'success')
+
+    # Resequence serial numbers from 1
+    all_pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
+    for i, po in enumerate(all_pos, start=1):
+        po.serial_number = i
+    db.session.commit()
+
+    flash(f'Cleanup complete: removed {total} POs, resequenced {len(all_pos)} serial numbers from 1', 'success')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/delete', methods=['POST'])
