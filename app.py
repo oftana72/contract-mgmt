@@ -304,9 +304,26 @@ with app.app_context():
             if dup_sns:
                 db.session.commit()
 
+            # ---- Import CSVs if total POs is below expected count ----
+            csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
+            csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
+            po_count = PurchaseOrder.query.count()
+            if po_count < 1700:
+                sys.path.insert(0, os.path.dirname(__file__))
+                if os.path.exists(csv_2017):
+                    from import_csv_data import import_csv
+                    import_csv(csv_2017)
+                if os.path.exists(csv_2016):
+                    from import_csv_data import import_csv
+                    import_csv(csv_2016)
+
             # ---- Remove POs with no PO number (plus any orphans) ----
             no_po = PurchaseOrder.query.filter(
-                (PurchaseOrder.po_number == None) | (PurchaseOrder.po_number == '')
+                db.or_(
+                    PurchaseOrder.po_number == None,
+                    PurchaseOrder.po_number == '',
+                    func.trim(PurchaseOrder.po_number) == ''
+                )
             ).all()
             for po in no_po:
                 PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
@@ -317,6 +334,8 @@ with app.app_context():
             if no_po:
                 db.session.commit()
                 print(f'  Cleanup: removed {len(no_po)} POs with no PO number')
+            else:
+                print(f'  Cleanup: no POs with empty PO number found')
 
             # ---- Remove specific serials ----
             remove_sns = [3051,3037,3036,3035,3033,3032,3031,3029,3028,3026,3025,3024,3023,3022,3015,3014,3013,3012,3011,3010,3009,3008,3007,3006,3005,3004,3003,3001,3000,2999,2998,2997,2996,2995,2994,2993,2992,2991,2990,2988,2987,2986,2985,2984,2983,2982,2981,2980,2979,2978,2977,2976,2975,2974,2973,2972,2971,2967,2961,2960,2958,2957,2954,2953,2952,2951,2950,2949,2948,2947,2946,2945,2944,2943,2942,2941,2940,2939,2938,2937,2936,2934,2933,2932,2931,2930,2929,2928,2927,2926,2925,2924,2923,2922,2921,2920,2919,2918,2917,2916,2776,2769,2759,2758,2757,2698,2648,2647,2644,2029,1454,1453,1452,1451,1450,1449,1448,1447,1446,1348,1337,895,243]
@@ -330,19 +349,6 @@ with app.app_context():
             if to_remove:
                 db.session.commit()
                 print(f'  Cleanup: removed {len(to_remove)} POs by serial number')
-
-            # ---- Import CSVs if total POs is below expected count ----
-            csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
-            csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
-            po_count = PurchaseOrder.query.count()
-            if po_count < 1700:
-                sys.path.insert(0, os.path.dirname(__file__))
-                if os.path.exists(csv_2017):
-                    from import_csv_data import import_csv
-                    import_csv(csv_2017)
-                if os.path.exists(csv_2016):
-                    from import_csv_data import import_csv
-                    import_csv(csv_2016)
     except Exception as e:
         print(f'Startup init error: {e}')
 
@@ -449,17 +455,39 @@ def admin_cleanup():
     if not current_user.is_admin:
         flash('Admin access required', 'danger')
         return redirect(url_for('index'))
+
+    from sqlalchemy import func as sa_func
+    total = 0
+
+    # Remove POs with no/empty PO number
+    no_po = PurchaseOrder.query.filter(
+        db.or_(
+            PurchaseOrder.po_number == None,
+            PurchaseOrder.po_number == '',
+            sa_func.trim(PurchaseOrder.po_number) == ''
+        )
+    ).all()
+    for po in no_po:
+        PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+        LetterOfCredit.query.filter_by(po_id=po.id).delete()
+        Shipment.query.filter_by(po_id=po.id).delete()
+        LineItem.query.filter_by(po_id=po.id).delete()
+        db.session.delete(po)
+    total += len(no_po)
+
+    # Remove POs by specific serial numbers
     remove_sns = [3051,3037,3036,3035,3033,3032,3031,3029,3028,3026,3025,3024,3023,3022,3015,3014,3013,3012,3011,3010,3009,3008,3007,3006,3005,3004,3003,3001,3000,2999,2998,2997,2996,2995,2994,2993,2992,2991,2990,2988,2987,2986,2985,2984,2983,2982,2981,2980,2979,2978,2977,2976,2975,2974,2973,2972,2971,2967,2961,2960,2958,2957,2954,2953,2952,2951,2950,2949,2948,2947,2946,2945,2944,2943,2942,2941,2940,2939,2938,2937,2936,2934,2933,2932,2931,2930,2929,2928,2927,2926,2925,2924,2923,2922,2921,2920,2919,2918,2917,2916,2776,2769,2759,2758,2757,2698,2648,2647,2644,2029,1454,1453,1452,1451,1450,1449,1448,1447,1446,1348,1337,895,243]
     to_remove = PurchaseOrder.query.filter(PurchaseOrder.serial_number.in_(remove_sns)).all()
-    count = len(to_remove)
     for po in to_remove:
         PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
         LetterOfCredit.query.filter_by(po_id=po.id).delete()
         Shipment.query.filter_by(po_id=po.id).delete()
         LineItem.query.filter_by(po_id=po.id).delete()
         db.session.delete(po)
+    total += len(to_remove)
+
     db.session.commit()
-    flash(f'Cleanup: removed {count} POs', 'success')
+    flash(f'Cleanup complete: removed {total} POs ({len(no_po)} empty PO number, {len(to_remove)} by serial)', 'success')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/delete', methods=['POST'])
