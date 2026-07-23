@@ -821,9 +821,21 @@ def reports():
     ).filter(PurchaseOrder.budget_year.isnot(None)
     ).group_by(BudgetSource.name, db.text('y')).order_by(BudgetSource.name, db.text('y desc')).all()
 
+    status_year_data = db.session.query(
+        POStatus.name,
+        PurchaseOrder.budget_year,
+        func.count(PurchaseOrder.id)
+    ).join(POStatus, PurchaseOrder.status_id == POStatus.id, isouter=True
+    ).filter(PurchaseOrder.budget_year.isnot(None)
+    ).group_by(POStatus.name, PurchaseOrder.budget_year
+    ).order_by(PurchaseOrder.budget_year).all()
+
+    status_names = ['Released', 'Confiscated', 'Replaced by Other PO']
+
     return render_template('reports.html', budget_data=budget_data,
                           supplier_data=supplier_data, currency_data=currency_data,
-                          year_data=year_data, budget_year_data=budget_year_data)
+                          year_data=year_data, budget_year_data=budget_year_data,
+                          status_year_data=status_year_data, status_names=status_names)
 
 @app.route('/api/pos')
 @login_required
@@ -1363,6 +1375,33 @@ def export_reports():
         w.writerow(['Supplier', 'PO Count'])
         for name, cnt in data:
             w.writerow([name or 'Unspecified', cnt])
+
+    elif section == 'status':
+        rows = db.session.query(
+            POStatus.name, PurchaseOrder.budget_year, func.count(PurchaseOrder.id)
+        ).join(POStatus, PurchaseOrder.status_id == POStatus.id, isouter=True
+        ).filter(PurchaseOrder.budget_year.isnot(None)
+        ).group_by(POStatus.name, PurchaseOrder.budget_year
+        ).order_by(PurchaseOrder.budget_year).all()
+        years = sorted(set(r[1] for r in rows))
+        status_names = ['Released', 'Confiscated', 'Replaced by Other PO']
+        totals = db.session.query(
+            PurchaseOrder.budget_year, func.count(PurchaseOrder.id)
+        ).filter(PurchaseOrder.budget_year.isnot(None)
+        ).group_by(PurchaseOrder.budget_year).all()
+        total_by_year = dict(totals)
+        w.writerow(['Budget Year'] + status_names + ['No Status'])
+        by_year = {}
+        for name, y, cnt in rows:
+            by_year.setdefault(y, {})[name or ''] = cnt
+        for y in years:
+            row_data = [y]
+            for s in status_names:
+                row_data.append(by_year.get(y, {}).get(s, 0))
+            total = total_by_year.get(y, 0)
+            status_sum = sum(row_data[1:])
+            row_data.append(total - status_sum)
+            w.writerow(row_data)
 
     resp = app.response_class(si.getvalue(), mimetype='text/csv')
     resp.headers['Content-Disposition'] = 'attachment; filename=report_{}.csv'.format(section)

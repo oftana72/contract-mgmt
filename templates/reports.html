@@ -9,6 +9,7 @@
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='budget') }}">Orders by Budget Source</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='currency') }}">Orders by Currency</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='suppliers') }}">Top Suppliers</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('export_reports', section='status') }}">PO Status by Budget Year</a></li>
         </ul>
     </div>
     <a href="{{ url_for('export_pos') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-download"></i> Export All POs</a>
@@ -52,6 +53,35 @@
                                 <td>{{ name or 'Unspecified' }}</td>
                                 <td>{{ y }}</td>
                                 <td>{{ "{:,.2f}".format(amt) if amt else '0.00' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-check-circle"></i> PO Status by Budget Year</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Budget Year</th>{% for s in status_names %}<th>{{ s }}</th>{% endfor %}<th>No Status</th></tr></thead>
+                        <tbody>
+                            {% set years = status_year_data|map(attribute=1)|unique|sort %}
+                            {% for y in years %}
+                            {% set rows_for_y = status_year_data|selectattr(1,'equalto',y)|list %}
+                            {% set total = rows_for_y|sum(attribute=2) %}
+                            <tr>
+                                <td><strong>{{ y }}</strong></td>
+                                {% for s in status_names %}
+                                {% set match = rows_for_y|selectattr(0,'equalto',s)|first %}
+                                <td>{{ match[2] if match else 0 }}</td>
+                                {% endfor %}
+                                {% set no_status = rows_for_y|selectattr(0,'none')|map(attribute=2)|sum %}
+                                <td>{{ no_status }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
