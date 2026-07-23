@@ -658,22 +658,6 @@ def admin_resequence():
         flash(f'Resequence error: {e}', 'danger')
     return redirect(url_for('index'))
 
-@app.route('/admin/fix-budget-year', methods=['GET'])
-@login_required
-def admin_fix_budget_year():
-    if not current_user.is_admin:
-        flash('Admin access required', 'danger')
-        return redirect(url_for('index'))
-    from sqlalchemy import text
-    is_pg = 'postgresql' in str(db.engine.url)
-    if is_pg:
-        db.session.execute(text("UPDATE purchase_orders SET budget_year = budget_year - 7 WHERE budget_year BETWEEN 2022 AND 2026"))
-    else:
-        db.session.execute(text("UPDATE purchase_orders SET budget_year = budget_year - 7 WHERE budget_year BETWEEN 2022 AND 2026"))
-    db.session.commit()
-    flash('Budget years updated (subtracted 7)', 'success')
-    return redirect(url_for('index'))
-
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):
