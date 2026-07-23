@@ -265,6 +265,30 @@ with app.app_context():
                 import_csv(csv_2016)
     except Exception as e:
         print(f'Startup import error: {e}')
+    # Cleanup: remove POs with no PO number, supplier, items, amount, currency, budget
+    try:
+        from sqlalchemy import select
+        subq = select(LineItem.po_id)
+        orphans = PurchaseOrder.query.filter(
+            (PurchaseOrder.po_number == None) | (PurchaseOrder.po_number == ''),
+            (PurchaseOrder.supplier_id == None),
+            (PurchaseOrder.supplier_name_raw == None) | (PurchaseOrder.supplier_name_raw == ''),
+            (PurchaseOrder.total_po_amount == None),
+            (PurchaseOrder.currency == None) | (PurchaseOrder.currency == ''),
+            (PurchaseOrder.budget_source_id == None),
+            ~PurchaseOrder.id.in_(subq)
+        ).all()
+        for po in orphans:
+            PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+            LetterOfCredit.query.filter_by(po_id=po.id).delete()
+            Shipment.query.filter_by(po_id=po.id).delete()
+            LineItem.query.filter_by(po_id=po.id).delete()
+            db.session.delete(po)
+            print(f'Startup cleanup: deleted PO ID:{po.id} SN:{po.serial_number}')
+        if orphans:
+            db.session.commit()
+    except Exception as e:
+        print(f'Startup cleanup error: {e}')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
