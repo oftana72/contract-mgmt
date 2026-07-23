@@ -569,18 +569,6 @@ def po_delete(po_id):
     flash(f'PO {po_number} and all associated data deleted', 'success')
     return redirect(url_for('po_list'))
 
-@app.route('/pos/<int:po_id>/lc/delete', methods=['POST'])
-@login_required
-def lc_delete(po_id):
-    if not current_user.is_admin:
-        flash('Admin access required', 'danger')
-        return redirect(url_for('po_detail', po_id=po_id))
-    po = PurchaseOrder.query.get_or_404(po_id)
-    LetterOfCredit.query.filter_by(po_id=po.id).delete()
-    db.session.commit()
-    flash('Letter of Credit record deleted', 'success')
-    return redirect(url_for('po_list'))
-
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):

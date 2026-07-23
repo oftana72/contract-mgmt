@@ -115,11 +115,6 @@
                             <span class="badge {% if po.lc_age_days > 90 %}bg-danger{% elif po.lc_age_days >= 70 %}bg-warning text-dark{% else %}bg-success{% endif %}">
                                 {{ po.lc_age_days }}d
                             </span>
-                            {% if current_user.is_admin %}
-                            <form action="{{ url_for('lc_delete', po_id=po.id) }}" method="post" style="display:inline" onsubmit="return confirm('Delete LC record?')">
-                                <button type="submit" class="btn btn-sm btn-outline-danger ms-1 py-0 px-1" title="Delete LC"><i class="bi bi-trash"></i></button>
-                            </form>
-                            {% endif %}
                             {% endif %}</td>
                     </tr>
                     {% endfor %}
