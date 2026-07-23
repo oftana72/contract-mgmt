@@ -77,6 +77,7 @@ class PurchaseOrder(db.Model):
     biofficer_id = db.Column(Integer, ForeignKey('bi_officers.id'))
     shipment_officer_id = db.Column(Integer, ForeignKey('shipment_officers.id'))
     status_id = db.Column(Integer, ForeignKey('po_statuses.id'))
+    budget_year = db.Column(Integer)
 
     supplier = db.relationship('Supplier', backref='orders')
     local_agent = db.relationship('LocalAgent', backref='orders')
@@ -192,6 +193,13 @@ def parse_float(val):
     except:
         return None
 
+def budget_year(dt):
+    if dt is None:
+        return None
+    if dt.month > 7 or (dt.month == 7 and dt.day >= 8):
+        return dt.year
+    return dt.year - 1
+
 def ensure_admin():
     if not User.query.filter_by(username='admin').first():
         admin = User(username='admin', is_admin=1)
@@ -209,7 +217,7 @@ with app.app_context():
         from sqlalchemy import inspect as sa_inspect
         inspector = sa_inspect(db.engine)
         cols = [c['name'] for c in inspector.get_columns('purchase_orders')]
-        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT'), ('status_changed_by', 'VARCHAR(80)'), ('status_changed_at', 'DATE')]:
+        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT'), ('status_changed_by', 'VARCHAR(80)'), ('status_changed_at', 'DATE'), ('budget_year', 'INTEGER')]:
             if col not in cols:
                 db.session.execute(db.text(f'ALTER TABLE purchase_orders ADD COLUMN {col} {coltype}'))
                 print(f'Added {col} column')
@@ -246,6 +254,33 @@ with app.app_context():
         except:
             pass
         print('Migration (backfill): ' + str(e))
+    # Backfill budget_year for POs with received_date
+    try:
+        from sqlalchemy import text
+        is_pg = 'postgresql' in str(db.engine.url)
+        if is_pg:
+            db.session.execute(text(
+                "UPDATE purchase_orders SET budget_year = "
+                "CASE WHEN EXTRACT(MONTH FROM received_date) > 7 OR (EXTRACT(MONTH FROM received_date) = 7 AND EXTRACT(DAY FROM received_date) >= 8) "
+                "THEN EXTRACT(YEAR FROM received_date)::integer "
+                "ELSE EXTRACT(YEAR FROM received_date)::integer - 1 END "
+                "WHERE received_date IS NOT NULL AND budget_year IS NULL"
+            ))
+        else:
+            db.session.execute(text(
+                "UPDATE purchase_orders SET budget_year = "
+                "CASE WHEN MONTH(received_date) > 7 OR (MONTH(received_date) = 7 AND DAY(received_date) >= 8) "
+                "THEN YEAR(received_date) "
+                "ELSE YEAR(received_date) - 1 END "
+                "WHERE received_date IS NOT NULL AND budget_year IS NULL"
+            ))
+        db.session.commit()
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except:
+            pass
+        print('Migration (budget_year backfill): ' + str(e))
     # Startup: dedup + cleanup + conditional import (PostgreSQL/Render only)
     try:
         is_pg = 'postgresql' in str(db.engine.url)
@@ -374,7 +409,7 @@ def po_list():
     if year_filter:
         try:
             y = int(year_filter)
-            query = query.filter(db.extract('year', PurchaseOrder.received_date) == y)
+            query = query.filter(PurchaseOrder.budget_year == y)
         except ValueError:
             pass
 
@@ -382,8 +417,8 @@ def po_list():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     pos = pagination.items
 
-    years = db.session.query(db.extract('year', PurchaseOrder.received_date).label('y')) \
-        .filter(PurchaseOrder.received_date.isnot(None)) \
+    years = db.session.query(PurchaseOrder.budget_year.label('y')) \
+        .filter(PurchaseOrder.budget_year.isnot(None)) \
         .distinct().order_by(db.text('y desc')).all()
     years = [r[0] for r in years]
 
@@ -391,10 +426,10 @@ def po_list():
     all_statuses = POStatus.query.order_by(POStatus.name).all()
 
     year_summary = db.session.query(
-        db.extract('year', PurchaseOrder.received_date).label('y'),
+        PurchaseOrder.budget_year.label('y'),
         func.count(PurchaseOrder.id),
         func.sum(PurchaseOrder.total_po_amount)
-    ).filter(PurchaseOrder.received_date.isnot(None)) \
+    ).filter(PurchaseOrder.budget_year.isnot(None)) \
      .group_by(db.text('y')).order_by(db.text('y desc')).all()
 
     return render_template('po_list.html', pos=pos, pagination=pagination,
@@ -446,6 +481,7 @@ def po_edit(po_id):
     po = PurchaseOrder.query.get_or_404(po_id)
     if request.method == 'POST':
         po.received_date = parse_date(request.form.get('received_date'))
+        po.budget_year = budget_year(po.received_date)
         po.tender_reference = request.form.get('tender_reference', '').strip()
         po.mode_of_shipment = request.form.get('mode_of_shipment', '').strip()
         po.po_transferred_date = parse_date(request.form.get('po_transferred_date'))
@@ -568,9 +604,9 @@ def reports():
     ).group_by(PurchaseOrder.currency).all()
 
     po_year = db.session.query(
-        db.extract('year', PurchaseOrder.received_date).label('y'),
+        PurchaseOrder.budget_year.label('y'),
         PurchaseOrder.id, PurchaseOrder.total_po_amount
-    ).filter(PurchaseOrder.received_date.isnot(None)).subquery()
+    ).filter(PurchaseOrder.budget_year.isnot(None)).subquery()
 
     item_counts = db.session.query(
         LineItem.po_id, func.count(LineItem.id).label('ic')
@@ -586,10 +622,10 @@ def reports():
 
     budget_year_data = db.session.query(
         BudgetSource.name,
-        db.extract('year', PurchaseOrder.received_date).label('y'),
+        PurchaseOrder.budget_year.label('y'),
         func.sum(PurchaseOrder.total_po_amount)
     ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
-    ).filter(PurchaseOrder.received_date.isnot(None)
+    ).filter(PurchaseOrder.budget_year.isnot(None)
     ).group_by(BudgetSource.name, db.text('y')).order_by(BudgetSource.name, db.text('y desc')).all()
 
     return render_template('reports.html', budget_data=budget_data,
@@ -694,6 +730,7 @@ def po_create():
         po = PurchaseOrder(
             serial_number=max_sn + 1,
             received_date=parse_date(request.form.get('received_date')),
+            budget_year=budget_year(parse_date(request.form.get('received_date'))),
             tender_reference=request.form.get('tender_reference', '').strip(),
             po_number=po_number,
             supplier_id=supplier.id if supplier else None,
@@ -1037,7 +1074,7 @@ def export_pos():
         query = query.filter(POStatus.name == status_filter)
     if year_filter:
         try:
-            query = query.filter(db.extract('year', PurchaseOrder.received_date) == int(year_filter))
+            query = query.filter(PurchaseOrder.budget_year == int(year_filter))
         except ValueError:
             pass
     query = query.order_by(PurchaseOrder.received_date.desc(), PurchaseOrder.serial_number.desc())
@@ -1092,9 +1129,9 @@ def export_reports():
 
     if section == 'years':
         po_year = db.session.query(
-            db.extract('year', PurchaseOrder.received_date).label('y'),
+            PurchaseOrder.budget_year.label('y'),
             PurchaseOrder.id, PurchaseOrder.total_po_amount
-        ).filter(PurchaseOrder.received_date.isnot(None)).subquery()
+        ).filter(PurchaseOrder.budget_year.isnot(None)).subquery()
         item_counts = db.session.query(
             LineItem.po_id, func.count(LineItem.id).label('ic')
         ).group_by(LineItem.po_id).subquery()
@@ -1104,7 +1141,7 @@ def export_reports():
             func.coalesce(func.sum(item_counts.c.ic), 0)
         ).outerjoin(item_counts, po_year.c.id == item_counts.c.po_id
         ).group_by(po_year.c.y).order_by(po_year.c.y.desc()).all()
-        w.writerow(['Year', 'PO Count', 'Total Amount', 'Line Items'])
+        w.writerow(['Budget Year', 'PO Count', 'Total Amount', 'Line Items'])
         for y, cnt, amt, itm in data:
             w.writerow([y, cnt, amt if amt else 0, itm])
 

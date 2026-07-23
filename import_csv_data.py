@@ -49,7 +49,7 @@ from datetime import datetime, date
 from dateutil import parser as dateparser
 
 sys.path.insert(0, os.path.dirname(__file__))
-from app import app, db, Supplier, LocalAgent, BudgetSource, PurchaseOrder, LineItem, PerformanceGuarantee, LetterOfCredit, Shipment, BIOfficer, ShipmentOfficer, POStatus, User, parse_date, parse_float
+from app import app, db, Supplier, LocalAgent, BudgetSource, PurchaseOrder, LineItem, PerformanceGuarantee, LetterOfCredit, Shipment, BIOfficer, ShipmentOfficer, POStatus, User, parse_date, parse_float, budget_year
 
 
 def get_or_create(model, **kwargs):
@@ -181,6 +181,7 @@ def import_csv(filepath):
             po = PurchaseOrder(
                 serial_number=sn_int,
                 received_date=received_date,
+                budget_year=budget_year(received_date),
                 tender_reference=tender_ref,
                 po_number=po_number,
                 supplier_id=supplier.id if supplier else None,

@@ -4,7 +4,7 @@
 
 {% if year_summary %}
 <div class="row g-2 mb-3">
-    <div class="col-12"><small class="text-muted"><i class="bi bi-calendar3"></i> Contracts by Year</small></div>
+    <div class="col-12"><small class="text-muted"><i class="bi bi-calendar3"></i> Contracts by Budget Year (Jul 8–Jul 7)</small></div>
     {% for y, cnt, amt in year_summary %}
     <div class="col-md-2 col-6">
         <div class="card border-0 bg-light text-center py-1 {{ 'border-primary border' if year_filter == y|string }}">
@@ -18,7 +18,7 @@
     {% endfor %}
     {% if year_filter %}
     <div class="col-md-2 col-6 d-flex align-items-center">
-        <a href="{{ url_for('po_list', search=search, status=status_filter) }}" class="btn btn-sm btn-outline-secondary">Clear Year</a>
+        <a href="{{ url_for('po_list', search=search, status=status_filter) }}" class="btn btn-sm btn-outline-secondary">Clear Budget Year</a>
     </div>
     {% endif %}
 </div>
@@ -50,7 +50,7 @@
                 {% endfor %}
             </select>
             <select name="year" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
-                <option value="">All Years</option>
+                <option value="">All Budget Years</option>
                 {% for y in years %}
                 <option value="{{ y }}" {{ 'selected' if year_filter == y|string }}>{{ y }}</option>
                 {% endfor %}
@@ -78,7 +78,7 @@
                         <th>Currency</th>
                         <th>Budget</th>
                         <th>Status</th>
-                        <th>Year</th>
+                        <th>B.Year</th>
                         <th>Received</th>
                         <th>PG Expiry</th>
                         <th>Days Left</th>
@@ -98,7 +98,7 @@
                         <td>{{ po.currency or '' }}</td>
                         <td>{{ po.budget_source.name if po.budget_source else '' }}</td>
                         <td>{% if po.po_status %}<span class="badge bg-info">{{ po.po_status.name }}</span>{% endif %}</td>
-                        <td>{% if po.received_date %}<span class="badge bg-secondary">{{ po.received_date.year }}</span>{% endif %}</td>
+                        <td>{% if po.budget_year %}<span class="badge bg-secondary">{{ po.budget_year }}</span>{% endif %}</td>
                         <td>{{ po.received_date.strftime('%Y-%m-%d') if po.received_date else '' }}</td>
                         <td>{{ po.pg_expiry_date.strftime('%Y-%m-%d') if po.pg_expiry_date else '' }}</td>
                         <td>{% if po.pg_days_left is not none %}

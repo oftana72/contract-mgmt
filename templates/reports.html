@@ -5,7 +5,7 @@
     <div class="btn-group">
         <button class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-download"></i> Export</button>
         <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('export_reports', section='years') }}">Contracts by Year</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('export_reports', section='years') }}">Contracts by Budget Year</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='budget') }}">Orders by Budget Source</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='currency') }}">Orders by Currency</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='suppliers') }}">Top Suppliers</a></li>
@@ -18,11 +18,11 @@
 
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header"><i class="bi bi-calendar3"></i> Contracts by Year</div>
+            <div class="card-header"><i class="bi bi-calendar3"></i> Contracts by Budget Year</div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table mb-0">
-                        <thead><tr><th>Year</th><th>PO Count</th><th>Total Amount</th><th>Line Items</th></tr></thead>
+                        <thead><tr><th>Budget Year</th><th>PO Count</th><th>Total Amount</th><th>Line Items</th></tr></thead>
                         <tbody>
                             {% for y, cnt, amt, items in year_data %}
                             <tr>
@@ -41,11 +41,11 @@
 
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header"><i class="bi bi-pie-chart"></i> Budget Source by Year</div>
+            <div class="card-header"><i class="bi bi-pie-chart"></i> Budget Source by Budget Year</div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table mb-0">
-                        <thead><tr><th>Budget Source</th><th>Year</th><th>Total Amount</th></tr></thead>
+                        <thead><tr><th>Budget Source</th><th>Budget Year</th><th>Total Amount</th></tr></thead>
                         <tbody>
                             {% for name, y, amt in budget_year_data %}
                             <tr>
