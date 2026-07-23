@@ -269,26 +269,19 @@ with app.app_context():
             if dup_sns:
                 db.session.commit()
 
-            # ---- Remove orphans (no PO#, supplier, items, amount, currency, budget) ----
-            subq = select(LineItem.po_id)
-            orphans = PurchaseOrder.query.filter(
-                (PurchaseOrder.po_number == None) | (PurchaseOrder.po_number == ''),
-                (PurchaseOrder.supplier_id == None),
-                (PurchaseOrder.supplier_name_raw == None) | (PurchaseOrder.supplier_name_raw == ''),
-                (PurchaseOrder.total_po_amount == None),
-                (PurchaseOrder.currency == None) | (PurchaseOrder.currency == ''),
-                (PurchaseOrder.budget_source_id == None),
-                ~PurchaseOrder.id.in_(subq)
+            # ---- Remove POs with no PO number (plus any orphans) ----
+            no_po = PurchaseOrder.query.filter(
+                (PurchaseOrder.po_number == None) | (PurchaseOrder.po_number == '')
             ).all()
-            for po in orphans:
+            for po in no_po:
                 PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
                 LetterOfCredit.query.filter_by(po_id=po.id).delete()
                 Shipment.query.filter_by(po_id=po.id).delete()
                 LineItem.query.filter_by(po_id=po.id).delete()
                 db.session.delete(po)
-            if orphans:
+            if no_po:
                 db.session.commit()
-                print(f'  Cleanup: removed {len(orphans)} orphan POs')
+                print(f'  Cleanup: removed {len(no_po)} POs with no PO number')
 
             # ---- Import CSVs if total POs is below expected count ----
             csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
