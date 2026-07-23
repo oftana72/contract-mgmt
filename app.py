@@ -668,26 +668,6 @@ def admin_resequence():
         flash(f'Resequence error: {e}', 'danger')
     return redirect(url_for('index'))
 
-@app.route('/admin/import-gsheet', methods=['GET'])
-@login_required
-def admin_import_gsheet():
-    if not current_user.is_admin:
-        flash('Admin access required', 'danger')
-        return redirect(url_for('index'))
-    import traceback
-    try:
-        sys.path.insert(0, os.path.dirname(__file__))
-        from import_gsheet import import_gsheet
-        existing = set()
-        for p in db.session.query(PurchaseOrder.po_number).filter(PurchaseOrder.po_number != None, PurchaseOrder.po_number != '').all():
-            existing.add(p[0])
-        po_added, items_added = import_gsheet(skip_pnos=existing)
-        flash(f'Imported: {po_added} POs, {items_added} items', 'success')
-    except Exception as e:
-        app.logger.error(f'GSHEET IMPORT ERROR: {e}\n{traceback.format_exc()}')
-        flash(f'Import error: {e}', 'danger')
-    return redirect(url_for('index'))
-
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):
