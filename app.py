@@ -246,49 +246,64 @@ with app.app_context():
         except:
             pass
         print('Migration (backfill): ' + str(e))
-    # Startup import from bundled CSVs (PostgreSQL/Render only)
+    # Startup: dedup + cleanup + conditional import (PostgreSQL/Render only)
     try:
         is_pg = 'postgresql' in str(db.engine.url)
-        if not is_pg:
-            pass
-        else:
+        if is_pg:
+            # ---- Dedup: keep latest PO per serial_number ----
+            from sqlalchemy import select, func
+            dup_sns = db.session.query(
+                PurchaseOrder.serial_number,
+                func.count(PurchaseOrder.id)
+            ).group_by(PurchaseOrder.serial_number).having(func.count(PurchaseOrder.id) > 1).all()
+            for sn, cnt in dup_sns:
+                dup_pos = PurchaseOrder.query.filter_by(serial_number=sn).order_by(PurchaseOrder.id.desc()).all()
+                for po in dup_pos[1:]:
+                    PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+                    LetterOfCredit.query.filter_by(po_id=po.id).delete()
+                    Shipment.query.filter_by(po_id=po.id).delete()
+                    LineItem.query.filter_by(po_id=po.id).delete()
+                    db.session.delete(po)
+                if dup_pos:
+                    print(f'  Dedup: kept SN={sn} (removed {cnt-1} dupes)')
+            if dup_sns:
+                db.session.commit()
+
+            # ---- Remove orphans (no PO#, supplier, items, amount, currency, budget) ----
+            subq = select(LineItem.po_id)
+            orphans = PurchaseOrder.query.filter(
+                (PurchaseOrder.po_number == None) | (PurchaseOrder.po_number == ''),
+                (PurchaseOrder.supplier_id == None),
+                (PurchaseOrder.supplier_name_raw == None) | (PurchaseOrder.supplier_name_raw == ''),
+                (PurchaseOrder.total_po_amount == None),
+                (PurchaseOrder.currency == None) | (PurchaseOrder.currency == ''),
+                (PurchaseOrder.budget_source_id == None),
+                ~PurchaseOrder.id.in_(subq)
+            ).all()
+            for po in orphans:
+                PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+                LetterOfCredit.query.filter_by(po_id=po.id).delete()
+                Shipment.query.filter_by(po_id=po.id).delete()
+                LineItem.query.filter_by(po_id=po.id).delete()
+                db.session.delete(po)
+            if orphans:
+                db.session.commit()
+                print(f'  Cleanup: removed {len(orphans)} orphan POs')
+
+            # ---- Import CSVs if total POs is below expected count ----
             csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
             csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
-            has_2017 = PurchaseOrder.query.filter_by(serial_number=3054).first() is not None
-            has_2016 = PurchaseOrder.query.filter_by(serial_number=1509).first() is not None
-            sys.path.insert(0, os.path.dirname(__file__))
-            if not has_2017 and os.path.exists(csv_2017):
-                from import_csv_data import import_csv
-                import_csv(csv_2017)
-            if not has_2016 and os.path.exists(csv_2016):
-                from import_csv_data import import_csv
-                import_csv(csv_2016)
+            po_count = PurchaseOrder.query.count()
+            if po_count < 1700:
+                sys.path.insert(0, os.path.dirname(__file__))
+                if os.path.exists(csv_2017):
+                    from import_csv_data import import_csv
+                    import_csv(csv_2017)
+                if os.path.exists(csv_2016):
+                    from import_csv_data import import_csv
+                    import_csv(csv_2016)
     except Exception as e:
-        print(f'Startup import error: {e}')
-    # Cleanup: remove POs with no PO number, supplier, items, amount, currency, budget
-    try:
-        from sqlalchemy import select
-        subq = select(LineItem.po_id)
-        orphans = PurchaseOrder.query.filter(
-            (PurchaseOrder.po_number == None) | (PurchaseOrder.po_number == ''),
-            (PurchaseOrder.supplier_id == None),
-            (PurchaseOrder.supplier_name_raw == None) | (PurchaseOrder.supplier_name_raw == ''),
-            (PurchaseOrder.total_po_amount == None),
-            (PurchaseOrder.currency == None) | (PurchaseOrder.currency == ''),
-            (PurchaseOrder.budget_source_id == None),
-            ~PurchaseOrder.id.in_(subq)
-        ).all()
-        for po in orphans:
-            PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
-            LetterOfCredit.query.filter_by(po_id=po.id).delete()
-            Shipment.query.filter_by(po_id=po.id).delete()
-            LineItem.query.filter_by(po_id=po.id).delete()
-            db.session.delete(po)
-            print(f'Startup cleanup: deleted PO ID:{po.id} SN:{po.serial_number}')
-        if orphans:
-            db.session.commit()
-    except Exception as e:
-        print(f'Startup cleanup error: {e}')
+        print(f'Startup init error: {e}')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
