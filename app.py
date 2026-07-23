@@ -327,6 +327,16 @@ with app.app_context():
                     for p in db.session.query(PurchaseOrder.po_number).filter(PurchaseOrder.po_number != None, PurchaseOrder.po_number != '').all():
                         existing_pnos.add(p[0])
 
+            # ---- Import Google Sheet ----
+            try:
+                sys.path.insert(0, os.path.dirname(__file__))
+                from import_gsheet import import_gsheet
+                po_added, items_added = import_gsheet(skip_pnos=existing_pnos)
+                if po_added:
+                    print(f'  Google Sheet: {po_added} POs, {items_added} items imported')
+            except Exception as e:
+                print(f'  Google Sheet import error: {e}')
+
             # ---- Dedup by serial_number (skip 0/NULL) ----
             dup_sns = db.session.query(
                 PurchaseOrder.serial_number,
@@ -656,6 +666,26 @@ def admin_resequence():
     except Exception as e:
         app.logger.error(f'RESEQUENCE ERROR: {e}\n{traceback.format_exc()}')
         flash(f'Resequence error: {e}', 'danger')
+    return redirect(url_for('index'))
+
+@app.route('/admin/import-gsheet', methods=['GET'])
+@login_required
+def admin_import_gsheet():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    import traceback
+    try:
+        sys.path.insert(0, os.path.dirname(__file__))
+        from import_gsheet import import_gsheet
+        existing = set()
+        for p in db.session.query(PurchaseOrder.po_number).filter(PurchaseOrder.po_number != None, PurchaseOrder.po_number != '').all():
+            existing.add(p[0])
+        po_added, items_added = import_gsheet(skip_pnos=existing)
+        flash(f'Imported: {po_added} POs, {items_added} items', 'success')
+    except Exception as e:
+        app.logger.error(f'GSHEET IMPORT ERROR: {e}\n{traceback.format_exc()}')
+        flash(f'Import error: {e}', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
