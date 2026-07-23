@@ -64,7 +64,7 @@ def get_or_create(model, **kwargs):
     return obj
 
 
-def import_csv(filepath):
+def import_csv(filepath, skip_pnos=None):
     print(f"Importing: {filepath}")
     if not os.path.exists(filepath):
         print(f"ERROR: File not found: {filepath}")
@@ -175,6 +175,11 @@ def import_csv(filepath):
         # PO Status
         status_name = row[32].strip() if len(row) > 32 and row[32].strip() else ''
         po_status = get_or_create(POStatus, name=status_name) if status_name else None
+
+        # Skip if po_number already exists
+        if skip_pnos and po_number in skip_pnos:
+            i += 1
+            continue
 
         # Create PurchaseOrder
         try:

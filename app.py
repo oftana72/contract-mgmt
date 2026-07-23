@@ -281,121 +281,147 @@ with app.app_context():
         except:
             pass
         print('Migration (budget_year backfill): ' + str(e))
-    # Startup: dedup + cleanup + conditional import (PostgreSQL/Render only)
-    try:
+    # Startup: single-execution guard + import + cleanup + resequence (PostgreSQL/Render only)
+    def _run_startup():
         is_pg = 'postgresql' in str(db.engine.url)
-        if is_pg:
-            # ---- Dedup: keep latest PO per serial_number ----
-            from sqlalchemy import select, func
-            dup_sns = db.session.query(
-                PurchaseOrder.serial_number,
-                func.count(PurchaseOrder.id)
-            ).group_by(PurchaseOrder.serial_number).having(func.count(PurchaseOrder.id) > 1).all()
-            for sn, cnt in dup_sns:
-                dup_pos = PurchaseOrder.query.filter_by(serial_number=sn).order_by(PurchaseOrder.id.desc()).all()
-                for po in dup_pos[1:]:
-                    PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
-                    LetterOfCredit.query.filter_by(po_id=po.id).delete()
-                    Shipment.query.filter_by(po_id=po.id).delete()
-                    LineItem.query.filter_by(po_id=po.id).delete()
-                    db.session.delete(po)
-                if dup_pos:
-                    print(f'  Dedup: kept SN={sn} (removed {cnt-1} dupes)')
-            if dup_sns:
-                db.session.commit()
+        if not is_pg:
+            return
 
-            # ---- Import CSVs if total POs is below expected count ----
-            csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
-            csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
-            po_count = PurchaseOrder.query.count()
-            if po_count < 1700:
+        # ---- Guard: skip if another worker already did startup ----
+        started = db.session.query(db.text("SELECT 1 FROM information_schema.tables WHERE table_name='_meta'")).scalar()
+        if started:
+            done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='startup_done'")).scalar()
+            if done and done == '1':
+                print('  Startup already done (by another worker)')
+                return
+
+        # ---- Helper: meta table (mark as in-progress = '0') ----
+        db.session.execute(db.text("""
+            CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)
+        """))
+        db.session.commit()
+        db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done', '0') ON CONFLICT (key) DO NOTHING"))
+        db.session.commit()
+
+        from sqlalchemy import select, func
+
+        # ---- Import CSVs (skip dups by po_number) ----
+        csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
+        csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
+        existing_pnos = set()
+        for p in db.session.query(PurchaseOrder.po_number).filter(PurchaseOrder.po_number != None, PurchaseOrder.po_number != '').all():
+            existing_pnos.add(p[0])
+        for csv_path in [csv_2017, csv_2016]:
+            if os.path.exists(csv_path):
                 sys.path.insert(0, os.path.dirname(__file__))
-                if os.path.exists(csv_2017):
-                    from import_csv_data import import_csv
-                    import_csv(csv_2017)
-                if os.path.exists(csv_2016):
-                    from import_csv_data import import_csv
-                    import_csv(csv_2016)
+                from import_csv_data import import_csv
+                import_csv(csv_path, skip_pnos=existing_pnos)
+                for p in db.session.query(PurchaseOrder.po_number).filter(PurchaseOrder.po_number != None, PurchaseOrder.po_number != '').all():
+                    existing_pnos.add(p[0])
 
-            # ---- Remove POs with no PO number (plus any orphans) ----
-            no_po = PurchaseOrder.query.filter(
-                db.or_(
-                    PurchaseOrder.po_number == None,
-                    PurchaseOrder.po_number == '',
-                    func.trim(PurchaseOrder.po_number) == ''
-                )
-            ).all()
-            for po in no_po:
+        # ---- Dedup by serial_number (skip 0/NULL) ----
+        dup_sns = db.session.query(
+            PurchaseOrder.serial_number,
+            func.count(PurchaseOrder.id)
+        ).filter(
+            PurchaseOrder.serial_number != None,
+            PurchaseOrder.serial_number != 0
+        ).group_by(PurchaseOrder.serial_number).having(func.count(PurchaseOrder.id) > 1).all()
+        for sn, cnt in dup_sns:
+            dup_pos = PurchaseOrder.query.filter_by(serial_number=sn).order_by(PurchaseOrder.id.desc()).all()
+            for po in dup_pos[1:]:
                 PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
                 LetterOfCredit.query.filter_by(po_id=po.id).delete()
                 Shipment.query.filter_by(po_id=po.id).delete()
                 LineItem.query.filter_by(po_id=po.id).delete()
                 db.session.delete(po)
-            if no_po:
-                db.session.commit()
-                print(f'  Cleanup: removed {len(no_po)} POs with no PO number')
-            else:
-                print(f'  Cleanup: no POs with empty PO number found')
+            if dup_pos:
+                print(f'  Dedup serial: kept SN={sn} (removed {cnt-1})')
+        if dup_sns:
+            db.session.commit()
 
-            # ---- Remove specific serials ----
-            remove_sns = [3051,3037,3036,3035,3033,3032,3031,3029,3028,3026,3025,3024,3023,3022,3015,3014,3013,3012,3011,3010,3009,3008,3007,3006,3005,3004,3003,3001,3000,2999,2998,2997,2996,2995,2994,2993,2992,2991,2990,2988,2987,2986,2985,2984,2983,2982,2981,2980,2979,2978,2977,2976,2975,2974,2973,2972,2971,2967,2961,2960,2958,2957,2954,2953,2952,2951,2950,2949,2948,2947,2946,2945,2944,2943,2942,2941,2940,2939,2938,2937,2936,2934,2933,2932,2931,2930,2929,2928,2927,2926,2925,2924,2923,2922,2921,2920,2919,2918,2917,2916,2776,2769,2759,2758,2757,2704,2698,2648,2647,2644,2029,1454,1453,1452,1451,1450,1449,1448,1447,1446,1348,1337,895,243]
-            to_remove = PurchaseOrder.query.filter(PurchaseOrder.serial_number.in_(remove_sns)).all()
-            for po in to_remove:
-                PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
-                LetterOfCredit.query.filter_by(po_id=po.id).delete()
-                Shipment.query.filter_by(po_id=po.id).delete()
-                LineItem.query.filter_by(po_id=po.id).delete()
-                db.session.delete(po)
-            if to_remove:
-                db.session.commit()
-                print(f'  Cleanup: removed {len(to_remove)} POs by serial number')
+        # ---- Remove POs with no PO number ----
+        no_po = PurchaseOrder.query.filter(
+            db.or_(
+                PurchaseOrder.po_number == None,
+                PurchaseOrder.po_number == '',
+                func.trim(PurchaseOrder.po_number) == ''
+            )
+        ).all()
+        for po in no_po:
+            PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+            LetterOfCredit.query.filter_by(po_id=po.id).delete()
+            Shipment.query.filter_by(po_id=po.id).delete()
+            LineItem.query.filter_by(po_id=po.id).delete()
+            db.session.delete(po)
+        if no_po:
+            db.session.commit()
+            print(f'  Cleanup: removed {len(no_po)} POs with no PO number')
 
-            # ---- Dedup by PO number (keep most complete) ----
-            dup_po_nums = db.session.query(
-                PurchaseOrder.po_number,
-                func.count(PurchaseOrder.id)
-            ).filter(
-                PurchaseOrder.po_number != None,
-                PurchaseOrder.po_number != ''
-            ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
-            total_dup_removed = 0
-            for po_num, cnt in dup_po_nums:
-                pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
-                def po_score(p):
-                    f = sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
-                                        p.tender_reference, p.total_po_amount, p.currency, p.remark] if v)
-                    children = sum([
-                        LineItem.query.filter_by(po_id=p.id).count(),
-                        PerformanceGuarantee.query.filter_by(po_id=p.id).count(),
-                        LetterOfCredit.query.filter_by(po_id=p.id).count(),
-                        Shipment.query.filter_by(po_id=p.id).count()
-                    ])
-                    return (f, children, p.id)
-                best = max(pos, key=po_score)
-                for p in pos:
-                    if p.id == best.id:
-                        continue
-                    LineItem.query.filter_by(po_id=p.id).delete()
-                    PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
-                    LetterOfCredit.query.filter_by(po_id=p.id).delete()
-                    Shipment.query.filter_by(po_id=p.id).delete()
-                    db.session.delete(p)
-                    total_dup_removed += 1
-            if total_dup_removed:
-                db.session.commit()
-                print(f'  Dedup PO numbers: removed {total_dup_removed} duplicates')
+        # ---- Remove specific serials ----
+        remove_sns = [3051,3037,3036,3035,3033,3032,3031,3029,3028,3026,3025,3024,3023,3022,3015,3014,3013,3012,3011,3010,3009,3008,3007,3006,3005,3004,3003,3001,3000,2999,2998,2997,2996,2995,2994,2993,2992,2991,2990,2988,2987,2986,2985,2984,2983,2982,2981,2980,2979,2978,2977,2976,2975,2974,2973,2972,2971,2967,2961,2960,2958,2957,2954,2953,2952,2951,2950,2949,2948,2947,2946,2945,2944,2943,2942,2941,2940,2939,2938,2937,2936,2934,2933,2932,2931,2930,2929,2928,2927,2926,2925,2924,2923,2922,2921,2920,2919,2918,2917,2916,2776,2769,2759,2758,2757,2704,2698,2648,2647,2644,2029,1454,1453,1452,1451,1450,1449,1448,1447,1446,1348,1337,895,243]
+        to_remove = PurchaseOrder.query.filter(PurchaseOrder.serial_number.in_(remove_sns)).all()
+        for po in to_remove:
+            PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+            LetterOfCredit.query.filter_by(po_id=po.id).delete()
+            Shipment.query.filter_by(po_id=po.id).delete()
+            LineItem.query.filter_by(po_id=po.id).delete()
+            db.session.delete(po)
+        if to_remove:
+            db.session.commit()
+            print(f'  Cleanup: removed {len(to_remove)} POs by serial number')
 
-            # ---- Resequence serial numbers from 1 ----
-            total = PurchaseOrder.query.count()
-            max_sn = db.session.query(func.max(PurchaseOrder.serial_number)).scalar() or 0
-            if total > 0 and max_sn != total:
-                pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
-                for i, po in enumerate(pos, start=1):
-                    po.serial_number = i
-                db.session.commit()
-                print(f'  Resequenced {total} serial numbers from 1 (was max={max_sn})')
+        # ---- Dedup by PO number (keep most complete) ----
+        dup_po_nums = db.session.query(
+            PurchaseOrder.po_number,
+            func.count(PurchaseOrder.id)
+        ).filter(
+            PurchaseOrder.po_number != None,
+            PurchaseOrder.po_number != ''
+        ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
+        total_dup_removed = 0
+        for po_num, cnt in dup_po_nums:
+            pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
+            best = max(pos, key=lambda p: (
+                sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
+                                p.tender_reference, p.total_po_amount, p.currency, p.remark] if v),
+                LineItem.query.filter_by(po_id=p.id).count() +
+                    PerformanceGuarantee.query.filter_by(po_id=p.id).count() +
+                    LetterOfCredit.query.filter_by(po_id=p.id).count() +
+                    Shipment.query.filter_by(po_id=p.id).count(),
+                p.id
+            ))
+            for p in pos:
+                if p.id == best.id:
+                    continue
+                LineItem.query.filter_by(po_id=p.id).delete()
+                PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
+                LetterOfCredit.query.filter_by(po_id=p.id).delete()
+                Shipment.query.filter_by(po_id=p.id).delete()
+                db.session.delete(p)
+                total_dup_removed += 1
+        if total_dup_removed:
+            db.session.commit()
+            print(f'  Dedup PO numbers: removed {total_dup_removed} duplicates')
+
+        # ---- Resequence serial numbers from 1 ----
+        total = PurchaseOrder.query.count()
+        pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
+        for i, po in enumerate(pos, start=1):
+            po.serial_number = i
+        db.session.commit()
+        print(f'  Resequenced {total} serial numbers from 1')
+
+        # ---- Mark startup complete ----
+        db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done'"))
+        db.session.commit()
+
+    try:
+        _run_startup()
     except Exception as e:
+        import traceback
         print(f'Startup init error: {e}')
+        traceback.print_exc()
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
