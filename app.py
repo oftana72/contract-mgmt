@@ -595,6 +595,32 @@ def po_delete(po_id):
     flash(f'PO {po_number} and all associated data deleted', 'success')
     return redirect(url_for('po_list'))
 
+@app.route('/admin/dedup-pos', methods=['GET'])
+@login_required
+def admin_dedup_pos():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    dup_po_nums = db.session.query(
+        PurchaseOrder.po_number,
+        func.count(PurchaseOrder.id)
+    ).filter(
+        PurchaseOrder.po_number != None,
+        PurchaseOrder.po_number != ''
+    ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
+    removed = 0
+    for po_num, cnt in dup_po_nums:
+        dup_pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.desc()).all()
+        for p in dup_pos[1:]:
+            for child_model in [LineItem, PerformanceGuarantee, LetterOfCredit, Shipment]:
+                child_model.query.filter_by(po_id=p.id).delete()
+            db.session.delete(p)
+            removed += 1
+    if removed:
+        db.session.commit()
+    flash(f'Dedup: removed {removed} duplicate POs by PO number', 'success')
+    return redirect(url_for('index'))
+
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):
