@@ -283,6 +283,19 @@ with app.app_context():
                 db.session.commit()
                 print(f'  Cleanup: removed {len(no_po)} POs with no PO number')
 
+            # ---- Remove specific serials ----
+            remove_sns = [3001,3000,2999,2998,2997,2996,2995,2994,2993,2992,2991,2990,2988,2987,2986,2985,2984,2983,2982,2981,2980,2979,2978,2977,2976,2975,2974,2973,2972,2971,2967,2961,2960,2958,2957,2954,2953,2952,2951,2950,2949,2948,2947,2946,2945,2944,2943,2942,2941,2940,2939,2938,2937,2936,2934,2933,2932,2931,2930,2929,2928,2927,2926,2925,2924,2923,2922,2921,2920,2919,2918,2917,2916,2776,2769,2759,2758,2757,2698,2648,2647,2644,2029,1454,1453,1452,1451,1450,1449,1448,1447,1446,1348,1337,895,243]
+            to_remove = PurchaseOrder.query.filter(PurchaseOrder.serial_number.in_(remove_sns)).all()
+            for po in to_remove:
+                PerformanceGuarantee.query.filter_by(po_id=po.id).delete()
+                LetterOfCredit.query.filter_by(po_id=po.id).delete()
+                Shipment.query.filter_by(po_id=po.id).delete()
+                LineItem.query.filter_by(po_id=po.id).delete()
+                db.session.delete(po)
+            if to_remove:
+                db.session.commit()
+                print(f'  Cleanup: removed {len(to_remove)} POs by serial number')
+
             # ---- Import CSVs if total POs is below expected count ----
             csv_2017 = os.path.join(os.path.dirname(__file__), '2017.csv')
             csv_2016 = os.path.join(os.path.dirname(__file__), '2016.csv')
