@@ -396,19 +396,8 @@ with app.app_context():
         ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
         total_dup_removed = 0
         for po_num, cnt in dup_po_nums:
-            pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
-            best = max(pos, key=lambda p: (
-                sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
-                                p.tender_reference, p.total_po_amount, p.currency, p.remark] if v),
-                LineItem.query.filter_by(po_id=p.id).count() +
-                    PerformanceGuarantee.query.filter_by(po_id=p.id).count() +
-                    LetterOfCredit.query.filter_by(po_id=p.id).count() +
-                    Shipment.query.filter_by(po_id=p.id).count(),
-                p.id
-            ))
-            for p in pos:
-                if p.id == best.id:
-                    continue
+            dup_pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.desc()).all()
+            for p in dup_pos[1:]:
                 LineItem.query.filter_by(po_id=p.id).delete()
                 PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
                 LetterOfCredit.query.filter_by(po_id=p.id).delete()
@@ -562,7 +551,7 @@ def admin_cleanup():
 
     db.session.commit()
 
-    # Dedup by PO number (keep most complete record per PO number)
+    # Dedup by PO number (keep highest ID)
     dup_po_nums = db.session.query(
         PurchaseOrder.po_number,
         func.count(PurchaseOrder.id)
@@ -572,17 +561,9 @@ def admin_cleanup():
     ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
     dup_removed = 0
     for po_num, cnt in dup_po_nums:
-        pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
-        best = max(pos, key=lambda p: (
-            sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
-                            p.tender_reference, p.total_po_amount, p.currency, p.remark] if v),
-            p.line_items.count() + p.performance_guarantees.count() +
-                p.letter_of_credits.count() + p.shipments.count(),
-            p.id
-        ))
-        for p in pos:
-            if p.id == best.id:
-                continue
+        dup_pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.desc()).all()
+        keep_id = dup_pos[0].id
+        for p in dup_pos[1:]:
             PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
             LetterOfCredit.query.filter_by(po_id=p.id).delete()
             Shipment.query.filter_by(po_id=p.id).delete()
