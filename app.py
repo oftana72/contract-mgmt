@@ -601,24 +601,31 @@ def admin_dedup_pos():
     if not current_user.is_admin:
         flash('Admin access required', 'danger')
         return redirect(url_for('index'))
-    dup_po_nums = db.session.query(
-        PurchaseOrder.po_number,
-        func.count(PurchaseOrder.id)
-    ).filter(
-        PurchaseOrder.po_number != None,
-        PurchaseOrder.po_number != ''
-    ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
-    removed = 0
-    for po_num, cnt in dup_po_nums:
-        dup_pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.desc()).all()
-        for p in dup_pos[1:]:
-            for child_model in [LineItem, PerformanceGuarantee, LetterOfCredit, Shipment]:
-                child_model.query.filter_by(po_id=p.id).delete()
-            db.session.delete(p)
-            removed += 1
-    if removed:
-        db.session.commit()
-    flash(f'Dedup: removed {removed} duplicate POs by PO number', 'success')
+    import traceback
+    try:
+        dup_po_nums = db.session.query(
+            PurchaseOrder.po_number,
+            func.count(PurchaseOrder.id)
+        ).filter(
+            PurchaseOrder.po_number != None,
+            PurchaseOrder.po_number != ''
+        ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
+        app.logger.error(f'DEDUP: found {len(dup_po_nums)} duplicate groups')
+        removed = 0
+        for po_num, cnt in dup_po_nums:
+            dup_pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.desc()).all()
+            for p in dup_pos[1:]:
+                for child_model in [LineItem, PerformanceGuarantee, LetterOfCredit, Shipment]:
+                    child_model.query.filter_by(po_id=p.id).delete()
+                db.session.delete(p)
+                removed += 1
+        if removed:
+            db.session.commit()
+        app.logger.error(f'DEDUP: removed {removed} duplicates')
+        flash(f'Dedup: removed {removed} duplicate POs by PO number', 'success')
+    except Exception as e:
+        app.logger.error(f'DEDUP ERROR: {e}\n{traceback.format_exc()}')
+        flash(f'Dedup error: {e}', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
