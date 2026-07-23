@@ -196,9 +196,10 @@ def parse_float(val):
 def budget_year(dt):
     if dt is None:
         return None
+    gy = dt.year
     if dt.month > 7 or (dt.month == 7 and dt.day >= 8):
-        return dt.year
-    return dt.year - 1
+        return gy - 7
+    return gy - 1 - 7
 
 def ensure_admin():
     if not User.query.filter_by(username='admin').first():
@@ -262,16 +263,16 @@ with app.app_context():
             db.session.execute(text(
                 "UPDATE purchase_orders SET budget_year = "
                 "CASE WHEN EXTRACT(MONTH FROM received_date) > 7 OR (EXTRACT(MONTH FROM received_date) = 7 AND EXTRACT(DAY FROM received_date) >= 8) "
-                "THEN EXTRACT(YEAR FROM received_date)::integer "
-                "ELSE EXTRACT(YEAR FROM received_date)::integer - 1 END "
+                "THEN EXTRACT(YEAR FROM received_date)::integer - 7 "
+                "ELSE EXTRACT(YEAR FROM received_date)::integer - 1 - 7 END "
                 "WHERE received_date IS NOT NULL AND budget_year IS NULL"
             ))
         else:
             db.session.execute(text(
                 "UPDATE purchase_orders SET budget_year = "
                 "CASE WHEN MONTH(received_date) > 7 OR (MONTH(received_date) = 7 AND DAY(received_date) >= 8) "
-                "THEN YEAR(received_date) "
-                "ELSE YEAR(received_date) - 1 END "
+                "THEN YEAR(received_date) - 7 "
+                "ELSE YEAR(received_date) - 1 - 7 END "
                 "WHERE received_date IS NOT NULL AND budget_year IS NULL"
             ))
         db.session.commit()
