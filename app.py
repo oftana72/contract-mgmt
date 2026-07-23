@@ -353,12 +353,12 @@ with app.app_context():
             # ---- Resequence serial numbers from 1 ----
             total = PurchaseOrder.query.count()
             max_sn = db.session.query(func.max(PurchaseOrder.serial_number)).scalar() or 0
-            if total > 0 and max_sn > total * 1.5:
+            if total > 0 and max_sn != total:
                 pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
                 for i, po in enumerate(pos, start=1):
                     po.serial_number = i
                 db.session.commit()
-                print(f'  Resequenced {total} serial numbers from 1')
+                print(f'  Resequenced {total} serial numbers from 1 (was max={max_sn})')
     except Exception as e:
         print(f'Startup init error: {e}')
 
