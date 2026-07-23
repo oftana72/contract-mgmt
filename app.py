@@ -562,13 +562,43 @@ def admin_cleanup():
 
     db.session.commit()
 
+    # Dedup by PO number (keep most complete record per PO number)
+    dup_po_nums = db.session.query(
+        PurchaseOrder.po_number,
+        func.count(PurchaseOrder.id)
+    ).filter(
+        PurchaseOrder.po_number != None,
+        PurchaseOrder.po_number != ''
+    ).group_by(PurchaseOrder.po_number).having(func.count(PurchaseOrder.id) > 1).all()
+    dup_removed = 0
+    for po_num, cnt in dup_po_nums:
+        pos = PurchaseOrder.query.filter_by(po_number=po_num).order_by(PurchaseOrder.id.asc()).all()
+        best = max(pos, key=lambda p: (
+            sum(1 for v in [p.supplier_name_raw, p.country_raw, p.received_date,
+                            p.tender_reference, p.total_po_amount, p.currency, p.remark] if v),
+            p.line_items.count() + p.performance_guarantees.count() +
+                p.letter_of_credits.count() + p.shipments.count(),
+            p.id
+        ))
+        for p in pos:
+            if p.id == best.id:
+                continue
+            PerformanceGuarantee.query.filter_by(po_id=p.id).delete()
+            LetterOfCredit.query.filter_by(po_id=p.id).delete()
+            Shipment.query.filter_by(po_id=p.id).delete()
+            LineItem.query.filter_by(po_id=p.id).delete()
+            db.session.delete(p)
+            dup_removed += 1
+    if dup_removed:
+        db.session.commit()
+
     # Resequence serial numbers from 1
     all_pos = PurchaseOrder.query.order_by(PurchaseOrder.received_date.asc(), PurchaseOrder.id.asc()).all()
     for i, po in enumerate(all_pos, start=1):
         po.serial_number = i
     db.session.commit()
 
-    flash(f'Cleanup: removed {total} empty-PO records, resequenced {len(all_pos)} serial numbers from 1', 'success')
+    flash(f'Cleanup: removed {total} empty-PO, deduped {dup_removed} PO numbers, resequenced {len(all_pos)}', 'success')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/delete', methods=['POST'])
