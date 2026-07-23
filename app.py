@@ -290,7 +290,7 @@ with app.app_context():
         # ---- Guard: skip if another worker already did startup ----
         started = db.session.query(db.text("SELECT 1 FROM information_schema.tables WHERE table_name='_meta'")).scalar()
         if started:
-            done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='startup_done'")).scalar()
+            done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='startup_done_v2'")).scalar()
             if done and done == '1':
                 print('  Startup already done (by another worker)')
                 return
@@ -300,7 +300,7 @@ with app.app_context():
             CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)
         """))
         db.session.commit()
-        db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done', '0') ON CONFLICT (key) DO NOTHING"))
+        db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done_v2', '0') ON CONFLICT (key) DO UPDATE SET value = '0'"))
         db.session.commit()
 
         from sqlalchemy import select, func
@@ -413,7 +413,7 @@ with app.app_context():
         print(f'  Resequenced {total} serial numbers from 1')
 
         # ---- Mark startup complete ----
-        db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done'"))
+        db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done_v2'"))
         db.session.commit()
 
     try:
