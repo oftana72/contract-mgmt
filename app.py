@@ -91,6 +91,7 @@ class PurchaseOrder(db.Model):
     shipments = db.relationship('Shipment', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     pg_expiry_date = db.Column(Date)
     pg_status = db.Column(String(20))
+    pg_days_left_frozen = db.Column(Integer)
     pg_release_date = db.Column(Date)
     pg_received_by = db.Column(String(200))
     pg_confiscation_reason = db.Column(Text)
@@ -99,6 +100,8 @@ class PurchaseOrder(db.Model):
 
     @property
     def pg_days_left(self):
+        if self.pg_status in ('Released', 'Confiscated') and self.pg_days_left_frozen is not None:
+            return self.pg_days_left_frozen
         if not self.pg_expiry_date:
             return None
         delta = (self.pg_expiry_date - date.today()).days
@@ -229,7 +232,7 @@ with app.app_context():
         from sqlalchemy import inspect as sa_inspect
         inspector = sa_inspect(db.engine)
         cols = [c['name'] for c in inspector.get_columns('purchase_orders')]
-        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT'), ('status_changed_by', 'VARCHAR(80)'), ('status_changed_at', 'DATE'), ('budget_year', 'INTEGER')]:
+        for col, coltype in [('pg_expiry_date', 'DATE'), ('pg_status', 'VARCHAR(20)'), ('pg_days_left_frozen', 'INTEGER'), ('pg_release_date', 'DATE'), ('pg_received_by', 'VARCHAR(200)'), ('pg_confiscation_reason', 'TEXT'), ('status_changed_by', 'VARCHAR(80)'), ('status_changed_at', 'DATE'), ('budget_year', 'INTEGER')]:
             if col not in cols:
                 db.session.execute(db.text(f'ALTER TABLE purchase_orders ADD COLUMN {col} {coltype}'))
                 print(f'Added {col} column')
@@ -444,9 +447,19 @@ with app.app_context():
             db.session.commit()
             print(f'  Resequenced {len(all_pos)} serial numbers from 1')
 
-            # ---- Auto-update PG Status ----
+            # ---- Freeze pg_days_left for Released/Confiscated POs ----
             from datetime import date as dt_date
             today = dt_date.today()
+            frozen = 0
+            for po in PurchaseOrder.query.filter(PurchaseOrder.pg_status.in_(['Released', 'Confiscated']), PurchaseOrder.pg_days_left_frozen.is_(None)).all():
+                if po.pg_expiry_date:
+                    po.pg_days_left_frozen = (po.pg_expiry_date - today).days
+                    frozen += 1
+            if frozen:
+                db.session.commit()
+                print(f'  Frozen pg_days_left for {frozen} Released/Confiscated POs')
+
+            # ---- Auto-update PG Status ----
             updated = 0
             for po in PurchaseOrder.query.filter(
                 ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated'])
@@ -850,7 +863,15 @@ def po_edit(po_id):
         po.currency = request.form.get('currency', '').strip()
         po.remark = request.form.get('remark', '')
         po.pg_expiry_date = parse_date(request.form.get('pg_expiry_date'))
-        po.pg_status = request.form.get('pg_status', '').strip() or None
+        new_pg_status = request.form.get('pg_status', '').strip() or None
+        if new_pg_status in ('Released', 'Confiscated') and new_pg_status != po.pg_status:
+            if po.pg_expiry_date:
+                po.pg_days_left_frozen = (po.pg_expiry_date - date.today()).days
+            else:
+                po.pg_days_left_frozen = None
+        elif new_pg_status not in ('Released', 'Confiscated'):
+            po.pg_days_left_frozen = None
+        po.pg_status = new_pg_status
         po.pg_release_date = parse_date(request.form.get('pg_release_date'))
         po.pg_received_by = request.form.get('pg_received_by', '').strip() or None
         po.pg_confiscation_reason = request.form.get('pg_confiscation_reason', '').strip() or None
