@@ -674,41 +674,46 @@ def admin_fix_suppliers():
     if not current_user.is_admin:
         flash('Admin access required', 'danger')
         return redirect(url_for('index'))
-    target = Supplier.query.filter_by(name='Rise Global GMBH').first()
-    if not target:
-        target = Supplier(name='Rise Global GMBH')
-        db.session.add(target)
-        db.session.flush()
-    for old_name in ['RISE GLOBAL GMBH', 'Rise GLOBAL GMBH']:
-        dup = Supplier.query.filter_by(name=old_name).first()
-        if dup and dup.id != target.id:
-            PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Rise Global GMBH'})
-            db.session.delete(dup)
+    import traceback
+    try:
+        target = Supplier.query.filter_by(name='Rise Global GMBH').first()
+        if not target:
+            target = Supplier(name='Rise Global GMBH')
+            db.session.add(target)
+            db.session.flush()
+        for old_name in ['RISE GLOBAL GMBH', 'Rise GLOBAL GMBH']:
+            dup = Supplier.query.filter_by(name=old_name).first()
+            if dup and dup.id != target.id:
+                PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Rise Global GMBH'})
+                db.session.delete(dup)
 
-    target = Supplier.query.filter_by(name='Macleods Pharmaceuticals Ltd').first()
-    if not target:
-        target = Supplier(name='Macleods Pharmaceuticals Ltd')
-        db.session.add(target)
-        db.session.flush()
-    for old_name in ['Macleods pharmaceuticals Ltd.', 'Macleods pharmaceuticals Ltd', 'Macleods Pharmaceutical Ltd', 'Macleods Phamaceuticals Ltd']:
-        dup = Supplier.query.filter_by(name=old_name).first()
-        if dup and dup.id != target.id:
-            PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Macleods Pharmaceuticals Ltd'})
-            db.session.delete(dup)
+        target2 = Supplier.query.filter_by(name='Macleods Pharmaceuticals Ltd').first()
+        if not target2:
+            target2 = Supplier(name='Macleods Pharmaceuticals Ltd')
+            db.session.add(target2)
+            db.session.flush()
+        for old_name in ['Macleods pharmaceuticals Ltd.', 'Macleods pharmaceuticals Ltd', 'Macleods Pharmaceutical Ltd', 'Macleods Phamaceuticals Ltd']:
+            dup = Supplier.query.filter_by(name=old_name).first()
+            if dup and dup.id != target2.id:
+                PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target2.id, 'supplier_name_raw': 'Macleods Pharmaceuticals Ltd'})
+                db.session.delete(dup)
 
-    target = Supplier.query.filter_by(name='Scott-Edil Pharmacia Ltd').first()
-    if not target:
-        target = Supplier(name='Scott-Edil Pharmacia Ltd')
-        db.session.add(target)
-        db.session.flush()
-    for old_name in ['Scott Edil Pharmacia Ltd', 'Scott Edil pharmacia Ltd']:
-        dup = Supplier.query.filter_by(name=old_name).first()
-        if dup and dup.id != target.id:
-            PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Scott-Edil Pharmacia Ltd'})
-            db.session.delete(dup)
+        target3 = Supplier.query.filter_by(name='Scott-Edil Pharmacia Ltd').first()
+        if not target3:
+            target3 = Supplier(name='Scott-Edil Pharmacia Ltd')
+            db.session.add(target3)
+            db.session.flush()
+        for old_name in ['Scott Edil Pharmacia Ltd', 'Scott Edil pharmacia Ltd']:
+            dup = Supplier.query.filter_by(name=old_name).first()
+            if dup and dup.id != target3.id:
+                PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target3.id, 'supplier_name_raw': 'Scott-Edil Pharmacia Ltd'})
+                db.session.delete(dup)
 
-    db.session.commit()
-    flash('Supplier names normalized', 'success')
+        db.session.commit()
+        flash('Supplier names normalized', 'success')
+    except Exception as e:
+        app.logger.error(f'FIX SUPPLIERS ERROR: {e}\n{traceback.format_exc()}')
+        flash(f'Error: {e}', 'danger')
     return redirect(url_for('index'))
 
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
