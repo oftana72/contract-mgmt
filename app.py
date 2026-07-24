@@ -716,6 +716,94 @@ def admin_fix_suppliers():
         flash(f'Error: {e}', 'danger')
     return redirect(url_for('index'))
 
+@app.route('/admin/fix-budget-sources', methods=['GET'])
+@login_required
+def admin_fix_budget_sources():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    import traceback
+    try:
+        mapping = {
+            'EPH-': 'EPHI', 'EPH-EM': 'EPHI', 'EPH-EM-23': 'EPHI', 'EPH-GF': 'EPHI',
+            'EPHI - GF - 5457': 'EPHI',
+            'GF': 'GF', 'GF/HIV': 'GF', 'GF-HAPCO/HIV-RTK/': 'GF', 'GF-HIV': 'GF',
+            'GF-HIV- GC7-0001-011': 'GF', 'GF-HIV-GC7': 'GF', 'GF-HIV-GC7-0001-011': 'GF',
+            'GF-LAB-23-001-011': 'GF', 'GF-MAL': 'GF', 'GF-MAL-GC7': 'GF', 'GF-MH': 'GF',
+            'GF-OTH-23': 'GF', 'GF-OTH-23-001-011': 'GF', 'GF-TB': 'GF', 'GF-TB-GC': 'GF',
+            'GF-TB-GC7': 'GF', 'Global Fund': 'GF',
+            'HP': 'SDG', 'HP/ SDG': 'SDG',
+            'Ministry of Finance': 'Treasury',
+            'MOF': 'Treasury', 'MOF -MH': 'Treasury', 'MOF-HP': 'Treasury', 'MOF-MAL': 'Treasury',
+            'MOF-ME': 'Treasury', 'MOF-ME-23': 'Treasury', 'MOF-ME- 23-001-011': 'Treasury',
+            'MOF-MH': 'Treasury', 'MOF-MH-23': 'Treasury', 'MOF-MH-24': 'Treasury',
+            'MOF-NUT': 'Treasury', 'MOF-NUT-23': 'Treasury', 'MOF-OTH': 'Treasury',
+            'MOF-OTH-23-001-011': 'Treasury',
+            'MOH-MOF-OTHER': 'Treasury',
+            'MOH-HIV-TREASURE': 'Treasury', 'MOH-HIV-TREASURE- RE-26': 'Treasury',
+            'MOH-NCD-TREASU -RE-26': 'Treasury', 'MOH-TB-TREASURE': 'Treasury',
+            'MOH-Yellow': 'Treasury', 'MOH-YELLOWWFVAC': 'Treasury',
+            'MOH': 'SDG', 'MOH - RMNCH': 'SDG', 'MOH-CH': 'SDG', 'MOH-CH-23': 'SDG',
+            'MOH-FH': 'SDG', 'MOH-HIV': 'SDG', 'MOH-IA4DC-': 'SDG', 'MOH-MAL': 'SDG',
+            'MOH-Mal': 'SDG', 'MOH-ME': 'SDG', 'MOH-MVD-25-001-011': 'SDG',
+            'MOH-RMNCH': 'SDG', 'MOH-RMNCH-CMPT': 'SDG', 'MOH-RMNCH-CMPT-26': 'SDG',
+            'MOH-RMNCH-CPT': 'SDG', 'MOH-RNMCH-CMPT': 'SDG',
+            'rdf': 'RDF', 'RDF': 'RDF', 'RDF-Local': 'RDF', 'void RDF': 'RDF',
+            'RTI': 'RTI', 'RTI-NTD': 'RTI', 'RTI-NTD-23': 'RTI',
+            'SDG': 'SDG', 'SDG (Blood Bank)': 'SDG', 'SDG -TB': 'SDG', 'SDG/ME': 'SDG',
+            'SDG-BB-24-0001-011': 'SDG', 'SDG-FH': 'SDG', 'SDG-FH-23': 'SDG',
+            'SDG-FH-23-001-011': 'SDG', 'SDG-HEP-23': 'SDG', 'SDG-LAB': 'SDG',
+            'SDG-LAB-23-001-011': 'SDG', 'SDG-Local': 'SDG', 'SDG-LSB': 'SDG',
+            'SDG-MAL-23': 'SDG', 'SDG-ME': 'SDG', 'SDG-ME-23': 'SDG',
+            'SDG-ME-23-001-011': 'SDG', 'SDG-MH': 'SDG', 'SDG-MH-23': 'SDG',
+            'SDG-MH-23-001-011': 'SDG', 'SDG-MH-24': 'SDG', 'SDG-NUT': 'SDG',
+            'SDG-TB-23': 'SDG',
+            'Spanish Gov.t': 'Spanish Gov.t', "Spanish Gov't": 'Spanish Gov.t',
+            'STBF': 'STBF', 'STBF-ME-24': 'STBF',
+            'Susan Thompson Buffett Foundation': 'Susan Thompson Buffett Foundation',
+            'Treasury': 'Treasury', 'TREASURY': 'Treasury',
+            'Unspecified': 'Treasury',
+            'WB': 'WB',
+        }
+        # Handle newline variants that exist in the database
+        for nl_name, target in [
+            ('Ministry\nof Finance', 'Treasury'),
+            ('Susan Thompson \nBuffett Foundation', 'Susan Thompson Buffett Foundation'),
+        ]:
+            src = BudgetSource.query.filter_by(name=nl_name).first()
+            if src:
+                mapping[nl_name] = target
+
+        # Build reverse mapping: target_name -> list of old names
+        from collections import defaultdict
+        target_to_old = defaultdict(list)
+        for old, new in mapping.items():
+            if old == new:
+                continue
+            target_to_old[new].append(old)
+
+        changes = 0
+        for target_name, old_names in target_to_old.items():
+            canonical = BudgetSource.query.filter_by(name=target_name).first()
+            if not canonical:
+                canonical = BudgetSource(name=target_name)
+                db.session.add(canonical)
+                db.session.flush()
+            for old_name in old_names:
+                src = BudgetSource.query.filter_by(name=old_name).first()
+                if not src or src.id == canonical.id:
+                    continue
+                cnt = PurchaseOrder.query.filter_by(budget_source_id=src.id).update({'budget_source_id': canonical.id})
+                changes += cnt
+                db.session.delete(src)
+
+        db.session.commit()
+        flash(f'Budget sources normalized: {changes} POs updated', 'success')
+    except Exception as e:
+        app.logger.error(f'FIX BUDGET SOURCES ERROR: {e}\n{traceback.format_exc()}')
+        flash(f'Error: {e}', 'danger')
+    return redirect(url_for('index'))
+
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):
