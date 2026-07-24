@@ -105,6 +105,14 @@ class PurchaseOrder(db.Model):
         return delta
 
     @property
+    def sg_status(self):
+        if self.pg_status in ('Released', 'Confiscated'):
+            return self.pg_status
+        if not self.pg_expiry_date:
+            return 'Active'
+        return 'Expired' if self.pg_expiry_date < date.today() else 'Active'
+
+    @property
     def lc_age_days(self):
         lc = self.letter_of_credits.first()
         if not lc or not lc.opened_date:
@@ -432,6 +440,23 @@ with app.app_context():
                 po.serial_number = i
             db.session.commit()
             print(f'  Resequenced {len(all_pos)} serial numbers from 1')
+
+            # ---- Auto-update SG Status (Active / Expired) ----
+            from datetime import date as dt_date
+            today = dt_date.today()
+            updated = 0
+            for po in PurchaseOrder.query.filter(
+                ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated'])
+            ).all():
+                new_status = 'Active'
+                if po.pg_expiry_date and po.pg_expiry_date < today:
+                    new_status = 'Expired'
+                if po.pg_status != new_status:
+                    po.pg_status = new_status
+                    updated += 1
+            if updated:
+                db.session.commit()
+                print(f'  SG Status auto-updated: {updated} POs set to Active/Expired')
 
             # ---- Mark startup complete ----
             db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done_v3'"))

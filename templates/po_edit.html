@@ -120,8 +120,12 @@
                                     <label class="form-label">Days Left</label>
                                     <input type="text" class="form-control" value="{{ po.pg_days_left if po.pg_days_left is not none else '' }}" readonly>
                                 </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">SG Status</label>
+                                    <input type="text" class="form-control" value="{{ po.sg_status }}" readonly style="background:#f0f0f0;font-weight:bold">
+                                </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">PG Status</label>
+                                    <label class="form-label">PG Status (override)</label>
                                     <select name="pg_status" class="form-select" id="pgStatus" onchange="togglePgFields()">
                                         <option value="">--</option>
                                         <option value="Released" {{ 'selected' if po.pg_status == 'Released' }}>Released</option>

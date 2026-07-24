@@ -82,7 +82,7 @@
                         <th>Received</th>
                         <th>PG Expiry</th>
                         <th>Days Left</th>
-                        <th>PG Status</th>
+                        <th>SG Status</th>
                         <th>LC Age</th>
                     </tr>
                 </thead>
@@ -106,9 +106,9 @@
                                 {{ po.pg_days_left }}
                             </span>
                             {% endif %}</td>
-                        <td>{% if po.pg_status %}
-                            <span class="badge {% if po.pg_status == 'Released' %}bg-success{% elif po.pg_status == 'Confiscated' %}bg-danger{% else %}bg-secondary{% endif %}">
-                                {{ po.pg_status }}
+                        <td>{% if po.sg_status %}
+                            <span class="badge {% if po.sg_status == 'Released' %}bg-success{% elif po.sg_status == 'Confiscated' %}bg-danger{% elif po.sg_status == 'Expired' %}bg-danger{% else %}bg-success{% endif %}">
+                                {{ po.sg_status }}
                             </span>
                             {% endif %}</td>
                         <td>{% if po.lc_age_days is not none %}
