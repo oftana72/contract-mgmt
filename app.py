@@ -4,7 +4,7 @@ from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Float, Date, Text, ForeignKey, func, or_, distinct
+from sqlalchemy import Integer, String, Float, Date, Text, ForeignKey, func, or_, distinct, case as sa_case
 from dateutil import parser as dateparser
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -845,10 +845,59 @@ def reports():
         row['no_status'] = status_by_year.get(y, {}).get('', 0)
         status_year_data.append(row)
 
+    lc_opened = db.session.query(
+        PurchaseOrder.budget_year,
+        func.count(distinct(LetterOfCredit.po_id))
+    ).join(LetterOfCredit, PurchaseOrder.id == LetterOfCredit.po_id
+    ).filter(PurchaseOrder.budget_year.isnot(None), LetterOfCredit.opening_status == 'Opened'
+    ).group_by(PurchaseOrder.budget_year).all()
+    lc_opened_by_year = dict(lc_opened)
+
+    total_by_year = dict(db.session.query(
+        PurchaseOrder.budget_year, func.count(PurchaseOrder.id)
+    ).filter(PurchaseOrder.budget_year.isnot(None)
+    ).group_by(PurchaseOrder.budget_year).all())
+
+    lc_summary_years = sorted(total_by_year)
+    lc_summary_data = []
+    for y in lc_summary_years:
+        opened = lc_opened_by_year.get(y, 0)
+        total = total_by_year.get(y, 0)
+        lc_summary_data.append({'year': y, 'opened': opened, 'not_opened': total - opened})
+
+    lc_age_data = db.session.query(
+        sa_case(
+            (LetterOfCredit.age_days <= 69, 'Green (<=69d)'),
+            (LetterOfCredit.age_days <= 90, 'Yellow (70-90d)'),
+            else_='Red (>90d)'
+        ).label('category'),
+        func.count(LetterOfCredit.id)
+    ).filter(LetterOfCredit.age_days.isnot(None)
+    ).group_by('category').all()
+    lc_age_order = ['Green (<=69d)', 'Yellow (70-90d)', 'Red (>90d)']
+    lc_age_map = {k: 0 for k in lc_age_order}
+    for cat, cnt in lc_age_data:
+        lc_age_map[cat] = cnt
+
+    pg_status_data = db.session.query(
+        sa_case((PerformanceGuarantee.status == 'Released', 'Released'),
+                (PerformanceGuarantee.status == 'Confiscated', 'Confiscated'),
+                else_='Other').label('status'),
+        func.count(PerformanceGuarantee.id)
+    ).group_by('status').all()
+    pg_status_map = dict(pg_status_data)
+
+    closure_data = db.session.query(
+        Shipment.order_closure,
+        func.count(Shipment.id)
+    ).group_by(Shipment.order_closure).order_by(func.count(Shipment.id).desc()).all()
+
     return render_template('reports.html', budget_data=budget_data,
                           supplier_data=supplier_data, currency_data=currency_data,
                           year_data=year_data, budget_year_data=budget_year_data,
-                          status_year_data=status_year_data, status_names=status_names)
+                          status_year_data=status_year_data, status_names=status_names,
+                          lc_summary_data=lc_summary_data, lc_age_map=lc_age_map, lc_age_order=lc_age_order,
+                          pg_status_map=pg_status_map, closure_data=closure_data)
 
 @app.route('/api/pos')
 @login_required

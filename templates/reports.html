@@ -148,5 +148,91 @@
             </div>
         </div>
     </div>
+
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-envelope-open"></i> LC Status by Budget Year</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Budget Year</th><th>LC Opened</th><th>Not Opened</th><th>% Opened</th></tr></thead>
+                        <tbody>
+                            {% for row in lc_summary_data %}
+                            <tr>
+                                <td><strong>{{ row.year }}</strong></td>
+                                <td>{{ row.opened }}</td>
+                                <td>{{ row.not_opened }}</td>
+                                <td>{% if row.opened + row.not_opened > 0 %}{{ "{:.0f}".format(row.opened / (row.opened + row.not_opened) * 100) }}%{% else %}0%{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-clock"></i> LC Age Summary</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Category</th><th>Count</th></tr></thead>
+                        <tbody>
+                            {% for cat in lc_age_order %}
+                            <tr>
+                                <td><span class="badge {% if 'Green' in cat %}bg-success{% elif 'Yellow' in cat %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ cat }}</span></td>
+                                <td>{{ lc_age_map[cat] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-shield-check"></i> PG Status</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Status</th><th>Count</th></tr></thead>
+                        <tbody>
+                            {% for s, cnt in [('Released', pg_status_map.get('Released', 0)), ('Confiscated', pg_status_map.get('Confiscated', 0)), ('Other', pg_status_map.get('Other', 0))] %}
+                            <tr>
+                                <td>{{ s }}</td>
+                                <td>{{ cnt }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-check2-square"></i> Order Closure Status</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead><tr><th>Status</th><th>Count</th></tr></thead>
+                        <tbody>
+                            {% for name, cnt in closure_data %}
+                            <tr>
+                                <td>{{ name or 'Not Specified' }}</td>
+                                <td>{{ cnt }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
