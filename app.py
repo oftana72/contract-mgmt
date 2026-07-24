@@ -109,7 +109,7 @@ class PurchaseOrder(db.Model):
         if self.pg_status in ('Released', 'Confiscated'):
             return self.pg_status
         po_status_name = self.po_status.name if self.po_status else None
-        if po_status_name in ('Awaiting PG', 'Awaiting Budget') or not po_status_name:
+        if not self.pg_expiry_date and (po_status_name in ('Awaiting PG', 'Awaiting Budget') or not po_status_name):
             return 'PG not Received'
         if not self.pg_expiry_date:
             return 'Active'
@@ -452,7 +452,7 @@ with app.app_context():
                 ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated'])
             ).all():
                 po_st = po.po_status.name if po.po_status else None
-                if po_st in ('Awaiting PG', 'Awaiting Budget') or not po_st:
+                if not po.pg_expiry_date and (po_st in ('Awaiting PG', 'Awaiting Budget') or not po_st):
                     new_status = 'PG not Received'
                 elif po.pg_expiry_date and po.pg_expiry_date < today:
                     new_status = 'Expired'
