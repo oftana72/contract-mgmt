@@ -108,6 +108,9 @@ class PurchaseOrder(db.Model):
     def sg_status(self):
         if self.pg_status in ('Released', 'Confiscated'):
             return self.pg_status
+        po_status_name = self.po_status.name if self.po_status else None
+        if po_status_name in ('Awaiting PG', 'Awaiting Budget') or not po_status_name:
+            return 'PG not Received'
         if not self.pg_expiry_date:
             return 'Active'
         return 'Expired' if self.pg_expiry_date < date.today() else 'Active'
@@ -441,22 +444,26 @@ with app.app_context():
             db.session.commit()
             print(f'  Resequenced {len(all_pos)} serial numbers from 1')
 
-            # ---- Auto-update SG Status (Active / Expired) ----
+            # ---- Auto-update SG Status ----
             from datetime import date as dt_date
             today = dt_date.today()
             updated = 0
             for po in PurchaseOrder.query.filter(
                 ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated'])
             ).all():
-                new_status = 'Active'
-                if po.pg_expiry_date and po.pg_expiry_date < today:
+                po_st = po.po_status.name if po.po_status else None
+                if po_st in ('Awaiting PG', 'Awaiting Budget') or not po_st:
+                    new_status = 'PG not Received'
+                elif po.pg_expiry_date and po.pg_expiry_date < today:
                     new_status = 'Expired'
+                else:
+                    new_status = 'Active'
                 if po.pg_status != new_status:
                     po.pg_status = new_status
                     updated += 1
             if updated:
                 db.session.commit()
-                print(f'  SG Status auto-updated: {updated} POs set to Active/Expired')
+                print(f'  SG Status auto-updated: {updated} POs set to Active/Expired/PG not Received')
 
             # ---- Mark startup complete ----
             db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done_v3'"))
