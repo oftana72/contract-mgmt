@@ -444,7 +444,7 @@ with app.app_context():
             db.session.commit()
             print(f'  Resequenced {len(all_pos)} serial numbers from 1')
 
-            # ---- Auto-update SG Status ----
+            # ---- Auto-update PG Status ----
             from datetime import date as dt_date
             today = dt_date.today()
             updated = 0
@@ -463,7 +463,7 @@ with app.app_context():
                     updated += 1
             if updated:
                 db.session.commit()
-                print(f'  SG Status auto-updated: {updated} POs set to Active/Expired/PG not Received')
+                print(f'  PG Status auto-updated: {updated} POs set to Active/Expired/PG not Received')
 
             # ---- Mark startup complete ----
             db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done_v3'"))

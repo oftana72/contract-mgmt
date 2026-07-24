@@ -118,7 +118,7 @@
                     </span>
                     {% else %}-{% endif %}
                 </div>
-                <div class="mb-1"><strong>SG Status:</strong>
+                <div class="mb-1"><strong>PG Status:</strong>
                     <span class="badge {% if po.sg_status == 'Released' %}bg-success{% elif po.sg_status == 'Confiscated' %}bg-danger{% elif po.sg_status == 'Expired' %}bg-danger{% elif po.sg_status == 'PG not Received' %}bg-warning text-dark{% else %}bg-success{% endif %}">
                         {{ po.sg_status }}
                     </span>
