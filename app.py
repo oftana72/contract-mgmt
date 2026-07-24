@@ -668,6 +668,49 @@ def admin_resequence():
         flash(f'Resequence error: {e}', 'danger')
     return redirect(url_for('index'))
 
+@app.route('/admin/fix-suppliers', methods=['GET'])
+@login_required
+def admin_fix_suppliers():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    target = Supplier.query.filter_by(name='Rise Global GMBH').first()
+    if not target:
+        target = Supplier(name='Rise Global GMBH')
+        db.session.add(target)
+        db.session.flush()
+    for old_name in ['RISE GLOBAL GMBH', 'Rise GLOBAL GMBH']:
+        dup = Supplier.query.filter_by(name=old_name).first()
+        if dup and dup.id != target.id:
+            PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Rise Global GMBH'})
+            db.session.delete(dup)
+
+    target = Supplier.query.filter_by(name='Macleods Pharmaceuticals Ltd').first()
+    if not target:
+        target = Supplier(name='Macleods Pharmaceuticals Ltd')
+        db.session.add(target)
+        db.session.flush()
+    for old_name in ['Macleods pharmaceuticals Ltd.', 'Macleods pharmaceuticals Ltd', 'Macleods Pharmaceutical Ltd', 'Macleods Phamaceuticals Ltd']:
+        dup = Supplier.query.filter_by(name=old_name).first()
+        if dup and dup.id != target.id:
+            PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Macleods Pharmaceuticals Ltd'})
+            db.session.delete(dup)
+
+    target = Supplier.query.filter_by(name='Scott-Edil Pharmacia Ltd').first()
+    if not target:
+        target = Supplier(name='Scott-Edil Pharmacia Ltd')
+        db.session.add(target)
+        db.session.flush()
+    for old_name in ['Scott Edil Pharmacia Ltd', 'Scott Edil pharmacia Ltd']:
+        dup = Supplier.query.filter_by(name=old_name).first()
+        if dup and dup.id != target.id:
+            PurchaseOrder.query.filter_by(supplier_id=dup.id).update({'supplier_id': target.id, 'supplier_name_raw': 'Scott-Edil Pharmacia Ltd'})
+            db.session.delete(dup)
+
+    db.session.commit()
+    flash('Supplier names normalized', 'success')
+    return redirect(url_for('index'))
+
 @app.route('/pos/<int:po_id>/edit', methods=['GET', 'POST'])
 @login_required
 def po_edit(po_id):
