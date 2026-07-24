@@ -813,14 +813,6 @@ def reports():
     ).outerjoin(item_counts, po_year.c.id == item_counts.c.po_id
     ).group_by(po_year.c.y).order_by(po_year.c.y.desc()).all()
 
-    budget_year_data = db.session.query(
-        BudgetSource.name,
-        PurchaseOrder.budget_year.label('y'),
-        func.sum(PurchaseOrder.total_po_amount)
-    ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
-    ).filter(PurchaseOrder.budget_year.isnot(None)
-    ).group_by(BudgetSource.name, db.text('y')).order_by(BudgetSource.name, db.text('y desc')).all()
-
     raw_status = db.session.query(
         POStatus.name,
         PurchaseOrder.budget_year,
@@ -894,7 +886,7 @@ def reports():
 
     return render_template('reports.html', budget_data=budget_data,
                           supplier_data=supplier_data, currency_data=currency_data,
-                          year_data=year_data, budget_year_data=budget_year_data,
+                           year_data=year_data,
                           status_year_data=status_year_data, status_names=status_names,
                           lc_summary_data=lc_summary_data, lc_age_map=lc_age_map, lc_age_order=lc_age_order,
                           pg_status_map=pg_status_map, closure_data=closure_data)
