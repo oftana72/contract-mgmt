@@ -10,6 +10,8 @@
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='currency') }}">Orders by Currency</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='suppliers') }}">Top Suppliers</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='status') }}">PO Status by Budget Year</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('export_reports', section='budget_source_year') }}">Budget Source by Budget Year</a></li>
         </ul>
     </div>
     <a href="{{ url_for('export_pos') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-download"></i> Export All POs</a>
@@ -31,6 +33,45 @@
                                 <td>{{ cnt }}</td>
                                 <td>{{ "{:,.2f}".format(amt) if amt else '0.00' }}</td>
                                 <td>{{ items }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-table"></i> Budget Source by Budget Year</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0 table-sm">
+                        <thead>
+                            <tr>
+                                <th>Budget Source</th>
+                                {% for y in source_year_years %}
+                                <th class="text-end"><strong>{{ y }}</strong></th>
+                                {% endfor %}
+                                <th class="text-end"><strong>Total</strong></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for name in source_year_names %}
+                            <tr>
+                                <td>{{ name }}</td>
+                                {% for y in source_year_years %}
+                                <td class="text-end">
+                                    {% set cell = source_year_data[name].get(y) %}
+                                    {% if cell %}
+                                        {{ cell.cnt }} / {{ "{:,.2f}".format(cell.amt) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td class="text-end"><strong>{{ source_year_totals[name].cnt }}</strong> / <strong>{{ "{:,.2f}".format(source_year_totals[name].amt) }}</strong></td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -1020,12 +1020,38 @@ def reports():
         func.count(Shipment.id)
     ).group_by(Shipment.order_closure).order_by(func.count(Shipment.id).desc()).all()
 
+    raw_source_year = db.session.query(
+        BudgetSource.name,
+        PurchaseOrder.budget_year,
+        func.count(PurchaseOrder.id),
+        func.sum(PurchaseOrder.total_po_amount)
+    ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
+    ).filter(PurchaseOrder.budget_year.isnot(None)
+    ).group_by(BudgetSource.name, PurchaseOrder.budget_year
+    ).order_by(BudgetSource.name, PurchaseOrder.budget_year).all()
+
+    source_year_data = {}
+    source_year_years = set()
+    for name, y, cnt, amt in raw_source_year:
+        key = name or 'Unspecified'
+        source_year_data.setdefault(key, {})[y] = {'cnt': cnt, 'amt': amt or 0}
+        source_year_years.add(y)
+    source_year_names = sorted(source_year_data)
+    source_year_years = sorted(source_year_years)
+    source_year_totals = {}
+    for name in source_year_names:
+        tc = sum(source_year_data[name][y]['cnt'] for y in source_year_data[name])
+        ta = sum(source_year_data[name][y]['amt'] for y in source_year_data[name])
+        source_year_totals[name] = {'cnt': tc, 'amt': ta}
+
     return render_template('reports.html', budget_data=budget_data,
                           supplier_data=supplier_data, currency_data=currency_data,
                            year_data=year_data,
                           status_year_data=status_year_data, status_names=status_names,
                           lc_summary_data=lc_summary_data, lc_age_map=lc_age_map, lc_age_order=lc_age_order,
-                          pg_status_map=pg_status_map, closure_data=closure_data)
+                          pg_status_map=pg_status_map, closure_data=closure_data,
+                          source_year_data=source_year_data, source_year_names=source_year_names,
+                          source_year_years=source_year_years, source_year_totals=source_year_totals)
 
 @app.route('/api/pos')
 @login_required
@@ -1565,6 +1591,37 @@ def export_reports():
         w.writerow(['Supplier', 'PO Count'])
         for name, cnt in data:
             w.writerow([name or 'Unspecified', cnt])
+
+    elif section == 'budget_source_year':
+        data = db.session.query(
+            BudgetSource.name,
+            PurchaseOrder.budget_year,
+            func.count(PurchaseOrder.id),
+            func.sum(PurchaseOrder.total_po_amount)
+        ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
+        ).filter(PurchaseOrder.budget_year.isnot(None)
+        ).group_by(BudgetSource.name, PurchaseOrder.budget_year
+        ).order_by(BudgetSource.name, PurchaseOrder.budget_year).all()
+        years = sorted(set(r[1] for r in data))
+        sources = sorted(set(r[0] or 'Unspecified' for r in data))
+        w.writerow(['Budget Source'] + years + ['Total Count', 'Total Amount'])
+        totals = {}
+        for s in sources:
+            tc = sum(r[2] for r in data if (r[0] or 'Unspecified') == s)
+            ta = sum((r[3] or 0) for r in data if (r[0] or 'Unspecified') == s)
+            totals[s] = (tc, ta)
+        for s in sources:
+            row = [s]
+            for y in years:
+                found = [r for r in data if (r[0] or 'Unspecified') == s and r[1] == y]
+                if found:
+                    r = found[0]
+                    row.append(f"{r[2]} / {r[3]:,.2f}" if r[3] else str(r[2]))
+                else:
+                    row.append('-')
+            row.append(totals[s][0])
+            row.append(f"{totals[s][1]:,.2f}")
+            w.writerow(row)
 
     elif section == 'status':
         rows = db.session.query(
