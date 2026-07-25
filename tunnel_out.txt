@@ -1,0 +1,9 @@
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+Tunnel error: 404
+Warning: Permanently added 'serveo.net' (RSA) to the list of known hosts.
+[32mForwarding HTTP traffic from https://9603952c32682deb-196-188-255-238.serveousercontent.com
+
+=== PUBLIC URL: https://9603952c32682deb-196-188-255-238.serveousercontent.com ===
+=== Login: admin / admin ===
+
+[0mConnection to serveo.net closed by remote host.

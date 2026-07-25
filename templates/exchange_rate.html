@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Exchange Rate{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-currency-exchange"></i> ETB → USD Exchange Rate</div>
+            <div class="card-body">
+                <p class="text-muted">All ETB amounts across all reports are converted to USD using this rate.</p>
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">1 USD = ? ETB</label>
+                        <input type="number" step="0.01" min="0.01" name="rate" class="form-control" value="{{ rate }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <a href="{{ url_for('reports') }}" class="btn btn-outline-secondary">View Reports</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

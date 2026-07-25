@@ -25,7 +25,7 @@
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table mb-0">
-                        <thead><tr><th>Budget Year</th><th>PO Count</th><th>Total Amount</th><th>Line Items</th></tr></thead>
+                        <thead><tr><th>Budget Year</th><th>PO Count</th><th>Total Amount (USD)</th><th>Line Items</th></tr></thead>
                         <tbody>
                             {% for y, cnt, amt, items in year_data %}
                             <tr>
@@ -59,10 +59,10 @@
                             <tr>
                                 {% for y in source_year_years %}
                                 <th class="text-end">PO #</th>
-                                <th class="text-end">Amount</th>
+                                <th class="text-end">Amount (USD)</th>
                                 {% endfor %}
                                 <th class="text-end">PO #</th>
-                                <th class="text-end">Amount</th>
+                                <th class="text-end">Amount (USD)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -120,7 +120,7 @@
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table mb-0">
-                        <thead><tr><th>Budget Source</th><th>Count</th><th>Total Amount</th></tr></thead>
+                        <thead><tr><th>Budget Source</th><th>Count</th><th>Total Amount (USD)</th></tr></thead>
                         <tbody>
                             {% for name, count, amount in budget_data %}
                             <tr>
@@ -141,7 +141,7 @@
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table mb-0">
-                        <thead><tr><th>Currency</th><th>Count</th><th>Total Amount</th></tr></thead>
+                        <thead><tr><th>Currency</th><th>Count</th><th>Total Amount (USD)</th></tr></thead>
                         <tbody>
                             {% for curr, count, amount in currency_data %}
                             <tr>

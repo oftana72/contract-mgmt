@@ -55,6 +55,12 @@ class User(db.Model, UserMixin):
             return True
         return any(p.codename == codename for p in self.permissions)
 
+class ExchangeRate(db.Model):
+    __tablename__ = 'exchange_rates'
+    id = db.Column(Integer, primary_key=True)
+    rate = db.Column(Float, nullable=False, default=1)
+    updated_at = db.Column(Date, default=date.today)
+
 class Supplier(db.Model):
     __tablename__ = 'suppliers'
     __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
@@ -232,6 +238,17 @@ def budget_year(dt):
         return gy - 7
     return gy - 1 - 7
 
+def get_usd_rate():
+    er = ExchangeRate.query.order_by(ExchangeRate.id.desc()).first()
+    return er.rate if er else 1
+
+def usd_amount_expr():
+    rate = get_usd_rate()
+    return sa_case(
+        (PurchaseOrder.currency == 'ETB', PurchaseOrder.total_po_amount / rate),
+        else_=PurchaseOrder.total_po_amount
+    )
+
 def ensure_admin():
     if not User.query.filter_by(username='admin').first():
         admin = User(username='admin', is_admin=1)
@@ -254,6 +271,10 @@ with app.app_context():
         if not Permission.query.filter_by(codename=pcodename).first():
             db.session.add(Permission(name=pname, codename=pcodename))
     db.session.commit()
+    # ---- Seed default exchange rate ----
+    if not ExchangeRate.query.first():
+        db.session.add(ExchangeRate(rate=1))
+        db.session.commit()
     # Migration: add missing columns, backfill
     try:
         from sqlalchemy import inspect as sa_inspect
@@ -547,7 +568,12 @@ def index():
     total_pos = PurchaseOrder.query.count()
     total_items = LineItem.query.count()
     total_suppliers = Supplier.query.count()
-    total_amount = db.session.query(func.sum(PurchaseOrder.total_po_amount)).scalar() or 0
+    usd_rate_ix = get_usd_rate()
+    usd_amt_ix = sa_case(
+        (PurchaseOrder.currency == 'ETB', PurchaseOrder.total_po_amount / usd_rate_ix),
+        else_=PurchaseOrder.total_po_amount
+    )
+    total_amount = db.session.query(func.sum(usd_amt_ix)).scalar() or 0
     recent_pos = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).limit(5).all()
     return render_template('index.html', total_pos=total_pos, total_items=total_items,
                           total_suppliers=total_suppliers, total_amount=total_amount,
@@ -600,10 +626,15 @@ def po_list():
     budget_sources = BudgetSource.query.order_by(BudgetSource.name).all()
     all_statuses = POStatus.query.order_by(POStatus.name).all()
 
+    usd_rate_pl = get_usd_rate()
+    usd_amt_pl = sa_case(
+        (PurchaseOrder.currency == 'ETB', PurchaseOrder.total_po_amount / usd_rate_pl),
+        else_=PurchaseOrder.total_po_amount
+    )
     year_summary = db.session.query(
         PurchaseOrder.budget_year.label('y'),
         func.count(PurchaseOrder.id),
-        func.sum(PurchaseOrder.total_po_amount)
+        func.sum(usd_amt_pl)
     ).filter(PurchaseOrder.budget_year.isnot(None)) \
      .group_by(db.text('y')).order_by(db.text('y desc')).all()
 
@@ -1004,8 +1035,14 @@ def reports():
     if not current_user.has_permission('view_reports'):
         flash('Permission denied', 'danger')
         return redirect(url_for('index'))
+    usd_rate = get_usd_rate()
+    usd_amt = sa_case(
+        (PurchaseOrder.currency == 'ETB', PurchaseOrder.total_po_amount / usd_rate),
+        else_=PurchaseOrder.total_po_amount
+    )
+
     budget_data = db.session.query(
-        BudgetSource.name, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+        BudgetSource.name, func.count(PurchaseOrder.id), func.sum(usd_amt)
     ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
     ).group_by(BudgetSource.name).all()
 
@@ -1015,12 +1052,12 @@ def reports():
     ).group_by(Supplier.name).order_by(func.count(PurchaseOrder.id).desc()).limit(20).all()
 
     currency_data = db.session.query(
-        PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+        PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(usd_amt)
     ).group_by(PurchaseOrder.currency).all()
 
     po_year = db.session.query(
         PurchaseOrder.budget_year.label('y'),
-        PurchaseOrder.id, PurchaseOrder.total_po_amount
+        PurchaseOrder.id, usd_amt.label('usd_amt')
     ).filter(PurchaseOrder.budget_year.isnot(None)).subquery()
 
     item_counts = db.session.query(
@@ -1030,7 +1067,7 @@ def reports():
     year_data = db.session.query(
         po_year.c.y,
         func.count(distinct(po_year.c.id)),
-        func.sum(po_year.c.total_po_amount),
+        func.sum(po_year.c.usd_amt),
         func.coalesce(func.sum(item_counts.c.ic), 0)
     ).outerjoin(item_counts, po_year.c.id == item_counts.c.po_id
     ).group_by(po_year.c.y).order_by(po_year.c.y.desc()).all()
@@ -1110,7 +1147,7 @@ def reports():
         BudgetSource.name,
         PurchaseOrder.budget_year,
         func.count(PurchaseOrder.id),
-        func.sum(PurchaseOrder.total_po_amount)
+        func.sum(usd_amt)
     ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
     ).filter(PurchaseOrder.budget_year.isnot(None)
     ).group_by(BudgetSource.name, PurchaseOrder.budget_year
@@ -1601,6 +1638,25 @@ def clean_po(po_number):
     remaining = LineItem.query.filter_by(po_id=po.id).count()
     return jsonify({'po': po_number, 'deleted': deleted, 'remaining': remaining})
 
+@app.route('/settings/exchange-rate', methods=['GET', 'POST'])
+@login_required
+def exchange_rate():
+    if not current_user.is_admin:
+        flash('Permission denied', 'danger')
+        return redirect(url_for('settings_users'))
+    er = ExchangeRate.query.order_by(ExchangeRate.id.desc()).first()
+    if request.method == 'POST':
+        rate = parse_float(request.form.get('rate'))
+        if rate and rate > 0:
+            new_er = ExchangeRate(rate=rate)
+            db.session.add(new_er)
+            db.session.commit()
+            flash(f'Exchange rate updated to {rate} ETB/USD', 'success')
+        else:
+            flash('Invalid rate', 'danger')
+        return redirect(url_for('exchange_rate'))
+    return render_template('exchange_rate.html', rate=er.rate if er else 1)
+
 @app.route('/export/pos')
 @login_required
 def export_pos():
@@ -1671,41 +1727,47 @@ def export_reports():
     import csv, io
     section = request.args.get('section', 'years')
 
+    usd_rate_ex = get_usd_rate()
+    usd_amt_ex = sa_case(
+        (PurchaseOrder.currency == 'ETB', PurchaseOrder.total_po_amount / usd_rate_ex),
+        else_=PurchaseOrder.total_po_amount
+    )
+
     si = io.StringIO()
     w = csv.writer(si)
 
     if section == 'years':
         po_year = db.session.query(
             PurchaseOrder.budget_year.label('y'),
-            PurchaseOrder.id, PurchaseOrder.total_po_amount
+            PurchaseOrder.id, usd_amt_ex.label('usd_amt')
         ).filter(PurchaseOrder.budget_year.isnot(None)).subquery()
         item_counts = db.session.query(
             LineItem.po_id, func.count(LineItem.id).label('ic')
         ).group_by(LineItem.po_id).subquery()
         data = db.session.query(
             po_year.c.y, func.count(distinct(po_year.c.id)),
-            func.sum(po_year.c.total_po_amount),
+            func.sum(po_year.c.usd_amt),
             func.coalesce(func.sum(item_counts.c.ic), 0)
         ).outerjoin(item_counts, po_year.c.id == item_counts.c.po_id
         ).group_by(po_year.c.y).order_by(po_year.c.y.desc()).all()
-        w.writerow(['Budget Year', 'PO Count', 'Total Amount', 'Line Items'])
+        w.writerow(['Budget Year', 'PO Count', 'Total Amount (USD)', 'Line Items'])
         for y, cnt, amt, itm in data:
             w.writerow([y, cnt, amt if amt else 0, itm])
 
     elif section == 'budget':
         data = db.session.query(
-            BudgetSource.name, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+            BudgetSource.name, func.count(PurchaseOrder.id), func.sum(usd_amt_ex)
         ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
         ).group_by(BudgetSource.name).all()
-        w.writerow(['Budget Source', 'PO Count', 'Total Amount'])
+        w.writerow(['Budget Source', 'PO Count', 'Total Amount (USD)'])
         for name, cnt, amt in data:
             w.writerow([name or 'Unspecified', cnt, amt if amt else 0])
 
     elif section == 'currency':
         data = db.session.query(
-            PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
+            PurchaseOrder.currency, func.count(PurchaseOrder.id), func.sum(usd_amt_ex)
         ).group_by(PurchaseOrder.currency).all()
-        w.writerow(['Currency', 'PO Count', 'Total Amount'])
+        w.writerow(['Currency', 'PO Count', 'Total Amount (USD)'])
         for curr, cnt, amt in data:
             w.writerow([curr or 'Unspecified', cnt, amt if amt else 0])
 
@@ -1723,7 +1785,7 @@ def export_reports():
             BudgetSource.name,
             PurchaseOrder.budget_year,
             func.count(PurchaseOrder.id),
-            func.sum(PurchaseOrder.total_po_amount)
+            func.sum(usd_amt_ex)
         ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
         ).filter(PurchaseOrder.budget_year.isnot(None)
         ).group_by(BudgetSource.name, PurchaseOrder.budget_year
@@ -1732,8 +1794,8 @@ def export_reports():
         sources = sorted(set(r[0] or 'Unspecified' for r in data))
         headers = ['Budget Source']
         for y in years:
-            headers += [f'{y} PO #', f'{y} Amount']
-        headers += ['Total PO #', 'Total Amount']
+            headers += [f'{y} PO #', f'{y} Amount (USD)']
+        headers += ['Total PO #', 'Total Amount (USD)']
         w.writerow(headers)
         totals = {}
         for s in sources:

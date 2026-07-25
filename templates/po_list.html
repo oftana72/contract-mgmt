@@ -11,7 +11,7 @@
             <a href="{{ url_for('po_list', year=y, search=search, status=status_filter) }}" class="text-decoration-none text-dark">
                 <strong>{{ y }}</strong><br>
                 <span class="small">{{ cnt }} PO{{ 's' if cnt != 1 }}</span><br>
-                <span class="small text-muted">{{ "{:,.0f}".format(amt) if amt else '0' }}</span>
+                <span class="small text-muted">${{ "{:,.0f}".format(amt) if amt else '0' }}</span>
             </a>
         </div>
     </div>

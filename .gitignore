@@ -5,3 +5,5 @@ __pycache__/
 venv/
 *.db
 exported_data.csv
+
+NUL
