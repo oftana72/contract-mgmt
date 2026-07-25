@@ -205,11 +205,11 @@ def import_system_contracts(filepath):
         if pg_expiry or pg_reference or bi_officer_name:
             db.session.add(PerformanceGuarantee(
                 po_id=po.id, expiry_date=pg_expiry,
-                request_date=pg_requested, received_date=pg_received,
+                requested_date=pg_requested, received_date=pg_received,
                 confirmed_date=pg_confirmed,
                 bank_name=bank_name, pg_reference=pg_reference,
                 bi_officer=bi_officer_name,
-                pg_receiver=pg_receiver,
+                pg_receiver_name=pg_receiver,
                 status_date=status_date,
             ))
 
