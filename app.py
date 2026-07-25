@@ -1654,12 +1654,29 @@ def import_sheet2_route():
         out.append('Module imported OK, calling import_sheet()...')
         po_added, items_added = import_sheet()
         out.append(f'Done: {po_added} POs, {items_added} items')
+        from fix_sheet2 import run_fixes
+        run_fixes()
+        out.append('Fixes applied')
     except Exception as e:
         tb = traceback.format_exc()
         out.append(f'ERROR: {e}')
         out.append(tb)
         print(f'Sheet2 error: {e}\n{tb}', file=sys.stderr)
     return '<pre>' + '\n'.join(out) + '</pre>'
+
+@app.route('/admin/fix-sheet2', methods=['GET'])
+def fix_sheet2_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    import traceback, sys
+    try:
+        from fix_sheet2 import run_fixes
+        run_fixes()
+        return 'Fixes applied successfully'
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f'Fix error: {e}\n{tb}', file=sys.stderr)
+        return f'ERROR: {e}\n{tb}'
 
 @app.route('/import', methods=['GET', 'POST'])
 def import_route():

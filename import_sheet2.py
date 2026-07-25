@@ -139,9 +139,9 @@ def import_sheet(url=SHEET_URL):
 
         received_date = parse_date(row[1]) if len(row) > 1 else None
         tender_ref = row[2].strip().replace('\n', ' / ') if len(row) > 2 else ''
-        supplier_name = row[4].strip().replace('\n', ' ').replace('\r', '') if len(row) > 4 else ''
-        country = row[5].strip().replace('\n', ' ').replace('\r', '') if len(row) > 5 else ''
-        local_agent_name = row[6].strip().replace('\n', ' ').replace('\r', '') if len(row) > 6 else ''
+        supplier_name = ' '.join(row[4].strip().replace('\n', ' ').replace('\r', '').split()) if len(row) > 4 else ''
+        country = ' '.join(row[5].strip().replace('\n', ' ').replace('\r', '').split()) if len(row) > 5 else ''
+        local_agent_name = ' '.join(row[6].strip().replace('\n', ' ').replace('\r', '').split()) if len(row) > 6 else ''
 
         desc = row[7].strip() if len(row) > 7 and row[7].strip() else ''
         unit = row[8].strip() if len(row) > 8 else ''
@@ -183,7 +183,7 @@ def import_sheet(url=SHEET_URL):
             currency = currency_raw
 
         budget_name = row[14].strip() if len(row) > 14 else ''
-        budget_name_clean = budget_name.replace('\n', ' ').replace('\r', '').strip()
+        budget_name_clean = ' '.join(budget_name.replace('\n', ' ').replace('\r', '').split())
         canonical = BUDGET_MAP.get(budget_name_clean, budget_name_clean)
         budget_source = get_or_create(BudgetSource, name=canonical) if canonical else None
 

@@ -30,14 +30,28 @@ def run_fixes():
     if weird_bs:
         db.session.commit()
 
-    # 3. Normalize "FW/PIMA CD4/Analyzer/" → None
+    # 3. Fix budget sources with double spaces (from replacing \n with space)
+    for bs in BudgetSource.query.all():
+        clean_name = ' '.join(bs.name.split())
+        if clean_name != bs.name:
+            canonical = BudgetSource.query.filter_by(name=clean_name).first()
+            if not canonical:
+                bs.name = clean_name
+            else:
+                PurchaseOrder.query.filter_by(budget_source_id=bs.id).update(
+                    {'budget_source_id': canonical.id}
+                )
+                db.session.delete(bs)
+    db.session.commit()
+
+    # 4. Normalize "FW/PIMA CD4/Analyzer/" → None
     fw = BudgetSource.query.filter(BudgetSource.name.like('FW/PIMA%')).first()
     if fw:
         PurchaseOrder.query.filter_by(budget_source_id=fw.id).update({'budget_source_id': None})
         db.session.delete(fw)
         db.session.commit()
 
-    # 4. Normalize Ministry of Finance → Treasury
+    # 5. Normalize Ministry of Finance → Treasury
     mof = BudgetSource.query.filter(BudgetSource.name.like('Ministry%Finance%')).first()
     if mof:
         treasury = BudgetSource.query.filter_by(name='Treasury').first()
@@ -46,7 +60,7 @@ def run_fixes():
             db.session.delete(mof)
             db.session.commit()
 
-    # 5. Normalize GF-AHPCO/NFMIII/ARV/OI → GF
+    # 6. Normalize GF-AHPCO/NFMIII/ARV/OI → GF
     gf_ahpco = BudgetSource.query.filter(BudgetSource.name.like('GF-AHPCO%')).first()
     if gf_ahpco:
         gf = BudgetSource.query.filter_by(name='GF').first()
