@@ -833,6 +833,7 @@ def admin_fix_budget_sources():
             'GF': 'GF', 'GF/HIV': 'GF', 'GF-HAPCO/HIV-RTK/': 'GF', 'GF-HIV': 'GF',
             'GF-HIV- GC7-0001-011': 'GF', 'GF-HIV-GC7': 'GF', 'GF-HIV-GC7-0001-011': 'GF',
             'GF-LAB-23-001-011': 'GF', 'GF-MAL': 'GF', 'GF-MAL-GC7': 'GF', 'GF-MH': 'GF',
+            'GF-CBHIV': 'GF', 'GF-NFM': 'GF', 'GF-NFM2': 'GF',
             'GF-OTH-23': 'GF', 'GF-OTH-23-001-011': 'GF', 'GF-TB': 'GF', 'GF-TB-GC': 'GF',
             'GF-TB-GC7': 'GF', 'Global Fund': 'GF',
             'HP': 'SDG', 'HP/ SDG': 'SDG',
