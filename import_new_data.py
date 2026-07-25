@@ -207,6 +207,6 @@ def import_tsv(filepath):
     return po_count, item_count
 
 if __name__ == '__main__':
-    filepath = sys.argv[1] if len(sys.argv) > 1 else r'C:\Users\oftan\AppData\Local\Temp\opencode\contract-mgmt\new_data.tsv'
+    filepath = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), 'new_data.tsv')
     with app.app_context():
         import_tsv(filepath)

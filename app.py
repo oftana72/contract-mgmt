@@ -399,6 +399,17 @@ with app.app_context():
             except Exception as e:
                 print(f'  Google Sheet import error: {e}')
 
+            # ---- Import new_data.tsv ----
+            new_data_path = os.path.join(os.path.dirname(__file__), 'new_data.tsv')
+            if os.path.exists(new_data_path):
+                try:
+                    from import_new_data import import_tsv
+                    po_added2, items_added2 = import_tsv(new_data_path)
+                    if po_added2:
+                        print(f'  new_data.tsv: {po_added2} POs, {items_added2} items imported')
+                except Exception as e:
+                    print(f'  new_data.tsv import error: {e}')
+
             # ---- Dedup by serial_number (skip 0/NULL) ----
             dup_sns = db.session.query(
                 PurchaseOrder.serial_number,
