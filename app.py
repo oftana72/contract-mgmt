@@ -410,6 +410,23 @@ with app.app_context():
                 except Exception as e:
                     print(f'  new_data.tsv import error: {e}')
 
+            # ---- Import Google Sheet tab 2 (Contract Admin / BI / Shipment) ----
+            try:
+                from import_sheet2 import import_sheet
+                po_added3, items_added3 = import_sheet()
+                if po_added3:
+                    print(f'  Sheet2: {po_added3} POs, {items_added3} items imported')
+            except Exception as e:
+                print(f'  Sheet2 import error: {e}')
+
+            # ---- Fix budget sources and currencies from Sheet2 import ----
+            try:
+                from fix_sheet2 import run_fixes
+                run_fixes()
+                print(f'  Sheet2 fixes applied')
+            except Exception as e:
+                print(f'  Sheet2 fix error: {e}')
+
             # ---- Dedup by serial_number (skip 0/NULL) ----
             dup_sns = db.session.query(
                 PurchaseOrder.serial_number,
