@@ -1630,15 +1630,7 @@ def user_permissions_edit(id):
 def import_sheet2_route():
     if not current_user.is_authenticated or not current_user.is_admin:
         abort(403)
-    import traceback, sys
-    try:
-        from import_sheet2 import import_sheet
-        po_added, items_added = import_sheet()
-        return f'Sheet2 import: {po_added} POs, {items_added} items'
-    except Exception as e:
-        tb = traceback.format_exc()
-        print(f'Sheet2 import error: {e}\n{tb}', file=sys.stderr)
-        return f'ERROR: {e}\n{tb}'
+    return '<pre>importing...</pre>'
 
 @app.route('/import', methods=['GET', 'POST'])
 def import_route():
