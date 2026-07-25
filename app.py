@@ -1626,6 +1626,18 @@ def user_permissions_edit(id):
     user_perm_ids = {p.id for p in user.permissions}
     return render_template('user_permissions.html', user=user, all_permissions=all_permissions, user_perm_ids=user_perm_ids)
 
+@app.route('/admin/import-sheet2', methods=['GET'])
+def import_sheet2_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    try:
+        from import_sheet2 import import_sheet
+        po_added, items_added = import_sheet()
+        flash(f'Sheet2 import: {po_added} POs, {items_added} items', 'success')
+    except Exception as e:
+        flash(f'Sheet2 import error: {e}', 'danger')
+    return redirect(url_for('settings'))
+
 @app.route('/import', methods=['GET', 'POST'])
 def import_route():
     if request.method == 'POST':
