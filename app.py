@@ -1664,6 +1664,48 @@ def import_sheet2_route():
         print(f'Sheet2 error: {e}\n{tb}', file=sys.stderr)
     return '<pre>' + '\n'.join(out) + '</pre>'
 
+@app.route('/admin/import-system-contracts', methods=['GET'])
+def import_system_contracts_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    import traceback, sys, os
+    out = ['Starting import_system_contracts...']
+    try:
+        from import_system_contracts import import_system_contracts
+        filepath = os.path.join(os.path.dirname(__file__), 'system_contracts.tsv')
+        if not os.path.exists(filepath):
+            out.append(f'ERROR: {filepath} not found')
+        else:
+            po_added, items_added = import_system_contracts(filepath)
+            out.append(f'Done: {po_added} POs, {items_added} items')
+    except Exception as e:
+        tb = traceback.format_exc()
+        out.append(f'ERROR: {e}')
+        out.append(tb)
+        print(f'System contracts error: {e}\n{tb}', file=sys.stderr)
+    return '<pre>' + '\n'.join(out) + '</pre>'
+
+@app.route('/admin/import-tsv', methods=['GET'])
+def import_tsv_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    import traceback, sys, os
+    out = ['Starting new_data.tsv import...']
+    try:
+        from import_new_data import import_tsv
+        filepath = os.path.join(os.path.dirname(__file__), 'new_data.tsv')
+        if not os.path.exists(filepath):
+            out.append(f'ERROR: {filepath} not found')
+        else:
+            po_added, items_added = import_tsv(filepath)
+            out.append(f'Done: {po_added} POs, {items_added} items')
+    except Exception as e:
+        tb = traceback.format_exc()
+        out.append(f'ERROR: {e}')
+        out.append(tb)
+        print(f'TSV import error: {e}\n{tb}', file=sys.stderr)
+    return '<pre>' + '\n'.join(out) + '</pre>'
+
 @app.route('/admin/fix-sheet2', methods=['GET'])
 def fix_sheet2_route():
     if not current_user.is_authenticated or not current_user.is_admin:
