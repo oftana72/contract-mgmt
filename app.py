@@ -362,7 +362,7 @@ with app.app_context():
         try:
             started = db.session.query(db.text("SELECT 1 FROM information_schema.tables WHERE table_name='_meta'")).scalar()
             if started:
-                done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='startup_done_v3'")).scalar()
+                done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='startup_done_v4'")).scalar()
                 if done and done == '1':
                     print('  Startup already done (by another worker)')
                     return
@@ -371,7 +371,7 @@ with app.app_context():
                 CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)
             """))
             db.session.commit()
-            db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done_v3', '0') ON CONFLICT (key) DO UPDATE SET value = '0'"))
+            db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done_v4', '0') ON CONFLICT (key) DO UPDATE SET value = '0'"))
             db.session.commit()
 
             # ---- Import CSVs (skip dups by po_number) ----
@@ -555,7 +555,7 @@ with app.app_context():
                 print(f'  PG Status auto-updated: {updated} POs set to Active/Expired/PG not Received')
 
             # ---- Mark startup complete ----
-            db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done_v3'"))
+            db.session.execute(db.text("UPDATE _meta SET value='1' WHERE key='startup_done_v4'"))
             db.session.commit()
         finally:
             try:
