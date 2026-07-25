@@ -25,18 +25,35 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+user_permissions = db.Table('user_permissions',
+    db.Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
+    db.Column('permission_id', Integer, ForeignKey('permissions.id'), primary_key=True)
+)
+
+class Permission(db.Model):
+    __tablename__ = 'permissions'
+    id = db.Column(Integer, primary_key=True)
+    name = db.Column(String(100), nullable=False)
+    codename = db.Column(String(100), unique=True, nullable=False)
+
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
     id = db.Column(Integer, primary_key=True)
     username = db.Column(String(80), unique=True, nullable=False)
     password_hash = db.Column(String(200), nullable=False)
     is_admin = db.Column(Integer, default=0)
+    permissions = db.relationship('Permission', secondary=user_permissions, lazy='subquery')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def has_permission(self, codename):
+        if self.is_admin:
+            return True
+        return any(p.codename == codename for p in self.permissions)
 
 class Supplier(db.Model):
     __tablename__ = 'suppliers'
@@ -227,6 +244,16 @@ def ensure_admin():
 with app.app_context():
     db.create_all()
     ensure_admin()
+    # ---- Seed permissions ----
+    default_permissions = [
+        ('PO Create', 'po_create'), ('PO Edit', 'po_edit'),
+        ('PO Delete', 'po_delete'), ('View Reports', 'view_reports'),
+        ('Manage Settings', 'manage_settings'), ('Manage Users', 'manage_users'),
+    ]
+    for pname, pcodename in default_permissions:
+        if not Permission.query.filter_by(codename=pcodename).first():
+            db.session.add(Permission(name=pname, codename=pcodename))
+    db.session.commit()
     # Migration: add missing columns, backfill
     try:
         from sqlalchemy import inspect as sa_inspect
@@ -652,9 +679,9 @@ def admin_cleanup():
 @app.route('/pos/<int:po_id>/delete', methods=['POST'])
 @login_required
 def po_delete(po_id):
-    if not current_user.is_admin:
-        flash('Admin access required', 'danger')
-        return redirect(url_for('po_detail', po_id=po_id))
+    if not current_user.has_permission('po_delete'):
+        flash('Permission denied', 'danger')
+        return redirect(url_for('po_list'))
     po = PurchaseOrder.query.get_or_404(po_id)
     po_number = po.po_number or str(po.id)
     db.session.delete(po)
@@ -853,6 +880,9 @@ def admin_fix_budget_sources():
 @login_required
 def po_edit(po_id):
     po = PurchaseOrder.query.get_or_404(po_id)
+    if not current_user.has_permission('po_edit'):
+        flash('Permission denied', 'danger')
+        return redirect(url_for('po_detail', po_id=po_id))
     if request.method == 'POST':
         po.received_date = parse_date(request.form.get('received_date'))
         po.budget_year = budget_year(po.received_date)
@@ -971,6 +1001,9 @@ def po_edit(po_id):
 @app.route('/reports')
 @login_required
 def reports():
+    if not current_user.has_permission('view_reports'):
+        flash('Permission denied', 'danger')
+        return redirect(url_for('index'))
     budget_data = db.session.query(
         BudgetSource.name, func.count(PurchaseOrder.id), func.sum(PurchaseOrder.total_po_amount)
     ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
@@ -1132,6 +1165,9 @@ def api_pos():
 @app.route('/pos/new', methods=['GET', 'POST'])
 @login_required
 def po_create():
+    if not current_user.has_permission('po_create'):
+        flash('Permission denied', 'danger')
+        return redirect(url_for('po_list'))
     if request.method == 'POST':
         po_number = request.form.get('po_number', '').strip()
         if not po_number:
@@ -1486,6 +1522,43 @@ def user_delete(id):
     db.session.commit()
     flash('User deleted', 'success')
     return redirect(url_for('users_list'))
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        old_pw = request.form.get('old_password', '')
+        new_pw = request.form.get('new_password', '').strip()
+        confirm_pw = request.form.get('confirm_password', '').strip()
+        if not current_user.check_password(old_pw):
+            flash('Current password is incorrect', 'danger')
+        elif not new_pw:
+            flash('New password is required', 'danger')
+        elif new_pw != confirm_pw:
+            flash('Passwords do not match', 'danger')
+        else:
+            current_user.set_password(new_pw)
+            db.session.commit()
+            flash('Password changed successfully', 'success')
+            return redirect(url_for('index'))
+    return render_template('change_password.html')
+
+@app.route('/settings/users/<int:id>/permissions', methods=['GET', 'POST'])
+@login_required
+def user_permissions_edit(id):
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    user = User.query.get_or_404(id)
+    if request.method == 'POST':
+        selected = request.form.getlist('permissions')
+        user.permissions = [Permission.query.get(int(pid)) for pid in selected]
+        db.session.commit()
+        flash('Permissions updated', 'success')
+        return redirect(url_for('users_list'))
+    all_permissions = Permission.query.order_by(Permission.name).all()
+    user_perm_ids = {p.id for p in user.permissions}
+    return render_template('user_permissions.html', user=user, all_permissions=all_permissions, user_perm_ids=user_perm_ids)
 
 @app.route('/import', methods=['GET', 'POST'])
 def import_route():

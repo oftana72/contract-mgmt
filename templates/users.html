@@ -56,6 +56,7 @@
                                                 {% if u.is_admin %}Demote{% else %}Make Admin{% endif %}
                                             </button>
                                         </form>
+                                        <a href="{{ url_for('user_permissions_edit', id=u.id) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-shield"></i> Permissions</a>
                                         <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#resetPwd{{ u.id }}">Reset Pwd</button>
                                         <form method="POST" action="{{ url_for('user_delete', id=u.id) }}" style="display:inline"
                                             onsubmit="return confirm('Delete user {{ u.username }}?')">
