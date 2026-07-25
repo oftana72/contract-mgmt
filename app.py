@@ -154,7 +154,7 @@ class LineItem(db.Model):
     id = db.Column(Integer, primary_key=True)
     po_id = db.Column(Integer, ForeignKey('purchase_orders.id'), nullable=False)
     description = db.Column(Text)
-    unit = db.Column(String(20))
+    unit = db.Column(String(100))
     quantity = db.Column(Float)
     unit_price = db.Column(Float)
     total_price = db.Column(Float)
@@ -286,6 +286,23 @@ with app.app_context():
                 print(f'Added {col} column')
     except Exception as e:
         print('Migration (add columns): ' + str(e))
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(db.engine)
+        li_cols = [c['name'] for c in inspector.get_columns('line_items')]
+        li_unit = next((c for c in inspector.get_columns('line_items') if c['name'] == 'unit'), None)
+        if li_unit and li_unit.get('type') and 'VARCHAR(20)' in str(li_unit['type']):
+            is_pg2 = 'postgresql' in str(db.engine.url)
+            if is_pg2:
+                db.session.execute(db.text('ALTER TABLE line_items ALTER COLUMN unit TYPE VARCHAR(100)'))
+            else:
+                db.session.execute(db.text('ALTER TABLE line_items MODIFY COLUMN unit VARCHAR(100)'))
+            db.session.commit()
+            print('Migration: line_items.unit extended to VARCHAR(100)')
+    except Exception as e:
+        try: db.session.rollback()
+        except: pass
+        print('Migration (unit column): ' + str(e))
     try:
         from sqlalchemy import text
         is_pg = 'postgresql' in str(db.engine.url)
