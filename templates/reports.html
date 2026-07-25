@@ -50,11 +50,19 @@
                     <table class="table mb-0 table-sm">
                         <thead>
                             <tr>
-                                <th>Budget Source</th>
+                                <th rowspan="2">Budget Source</th>
                                 {% for y in source_year_years %}
-                                <th class="text-end"><strong>{{ y }}</strong></th>
+                                <th colspan="2" class="text-center"><strong>{{ y }}</strong></th>
                                 {% endfor %}
-                                <th class="text-end"><strong>Total</strong></th>
+                                <th colspan="2" class="text-center"><strong>Total</strong></th>
+                            </tr>
+                            <tr>
+                                {% for y in source_year_years %}
+                                <th class="text-end">PO #</th>
+                                <th class="text-end">Amount</th>
+                                {% endfor %}
+                                <th class="text-end">PO #</th>
+                                <th class="text-end">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -62,16 +70,17 @@
                             <tr>
                                 <td>{{ name }}</td>
                                 {% for y in source_year_years %}
-                                <td class="text-end">
-                                    {% set cell = source_year_data[name].get(y) %}
-                                    {% if cell %}
-                                        {{ cell.cnt }} / {{ "{:,.2f}".format(cell.amt) }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
+                                {% set cell = source_year_data[name].get(y) %}
+                                {% if cell %}
+                                <td class="text-end">{{ cell.cnt }}</td>
+                                <td class="text-end">{{ "{:,.2f}".format(cell.amt) }}</td>
+                                {% else %}
+                                <td class="text-end">-</td>
+                                <td class="text-end">-</td>
+                                {% endif %}
                                 {% endfor %}
-                                <td class="text-end"><strong>{{ source_year_totals[name].cnt }}</strong> / <strong>{{ "{:,.2f}".format(source_year_totals[name].amt) }}</strong></td>
+                                <td class="text-end"><strong>{{ source_year_totals[name].cnt }}</strong></td>
+                                <td class="text-end"><strong>{{ "{:,.2f}".format(source_year_totals[name].amt) }}</strong></td>
                             </tr>
                             {% endfor %}
                         </tbody>

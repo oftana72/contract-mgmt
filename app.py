@@ -1730,7 +1730,11 @@ def export_reports():
         ).order_by(BudgetSource.name, PurchaseOrder.budget_year).all()
         years = sorted(set(r[1] for r in data))
         sources = sorted(set(r[0] or 'Unspecified' for r in data))
-        w.writerow(['Budget Source'] + years + ['Total Count', 'Total Amount'])
+        headers = ['Budget Source']
+        for y in years:
+            headers += [f'{y} PO #', f'{y} Amount']
+        headers += ['Total PO #', 'Total Amount']
+        w.writerow(headers)
         totals = {}
         for s in sources:
             tc = sum(r[2] for r in data if (r[0] or 'Unspecified') == s)
@@ -1742,11 +1746,10 @@ def export_reports():
                 found = [r for r in data if (r[0] or 'Unspecified') == s and r[1] == y]
                 if found:
                     r = found[0]
-                    row.append(f"{r[2]} / {r[3]:,.2f}" if r[3] else str(r[2]))
+                    row += [r[2], f"{r[3]:,.2f}" if r[3] else '0.00']
                 else:
-                    row.append('-')
-            row.append(totals[s][0])
-            row.append(f"{totals[s][1]:,.2f}")
+                    row += ['', '']
+            row += [totals[s][0], f"{totals[s][1]:,.2f}"]
             w.writerow(row)
 
     elif section == 'status':
