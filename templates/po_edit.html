@@ -112,10 +112,10 @@
 
                         <div class="tab-pane fade" id="pgTab">
                             {% set pg = po.performance_guarantees.first() %}
-                            {% if pg %}
                             <div class="card card-body bg-light mb-3">
                                 <h6 class="card-title">Performance Guarantee Record</h6>
                                 <div class="row g-3">
+                                    {% if pg %}
                                     <div class="col-md-4">
                                         <label class="form-label">PG Requested Date</label>
                                         <input type="date" name="pg_requested_date_{{ pg.id }}" class="form-control" value="{{ pg.requested_date.strftime('%Y-%m-%d') if pg.requested_date else '' }}">
@@ -156,9 +156,50 @@
                                         <label class="form-label">BI Officer</label>
                                         <input type="text" name="pg_bi_officer_{{ pg.id }}" class="form-control" value="{{ pg.bi_officer or '' }}">
                                     </div>
+                                    {% else %}
+                                    <div class="col-md-4">
+                                        <label class="form-label">PG Requested Date</label>
+                                        <input type="date" name="new_pg_requested_date" class="form-control">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">PG Received Date</label>
+                                        <input type="date" name="new_pg_received_date" class="form-control">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Confirmed Date</label>
+                                        <input type="date" name="new_pg_confirmed_date" class="form-control">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Bank Name</label>
+                                        <input type="text" name="new_pg_bank_name" class="form-control">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">PG Reference</label>
+                                        <input type="text" name="new_pg_reference" class="form-control">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Expiry Date</label>
+                                        <input type="date" name="new_pg_expiry_date" class="form-control">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">PG Status</label>
+                                        <input type="text" name="new_pg_status" class="form-control">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Status Date</label>
+                                        <input type="date" name="new_pg_status_date" class="form-control">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Receiver Name</label>
+                                        <input type="text" name="new_pg_receiver_name" class="form-control">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">BI Officer</label>
+                                        <input type="text" name="new_pg_bi_officer" class="form-control">
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
-                            {% endif %}
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <label class="form-label">PG Expiry Date</label>

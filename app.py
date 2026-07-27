@@ -1048,7 +1048,9 @@ def po_edit(po_id):
 
         # New PG
         new_pg_bank = request.form.get('new_pg_bank_name', '').strip()
-        if new_pg_bank:
+        new_pg_req = request.form.get('new_pg_requested_date', '').strip()
+        new_pg_recv = request.form.get('new_pg_received_date', '').strip()
+        if new_pg_bank or new_pg_req or new_pg_recv:
             db.session.add(PerformanceGuarantee(
                 po_id=po.id,
                 bank_name=new_pg_bank,
