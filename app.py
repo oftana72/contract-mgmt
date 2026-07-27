@@ -1021,6 +1021,49 @@ def po_edit(po_id):
             po.status_changed_by = current_user.username
             po.status_changed_at = date.today()
 
+        # Handle Performance Guarantee
+        delete_pgs = request.form.getlist('delete_pg')
+        for pg_id in delete_pgs:
+            pg = PerformanceGuarantee.query.get(int(pg_id))
+            if pg and pg.po_id == po.id:
+                db.session.delete(pg)
+
+        pg_ids_updated = set()
+        # Update existing PGs
+        for pg in po.performance_guarantees.all():
+            pg_str_id = str(pg.id)
+            if pg_str_id in delete_pgs:
+                continue
+            pg.requested_date = parse_date(request.form.get('pg_requested_date_' + pg_str_id))
+            pg.received_date = parse_date(request.form.get('pg_received_date_' + pg_str_id))
+            pg.confirmed_date = parse_date(request.form.get('pg_confirmed_date_' + pg_str_id))
+            pg.bank_name = request.form.get('pg_bank_name_' + pg_str_id, '').strip() or None
+            pg.pg_reference = request.form.get('pg_reference_' + pg_str_id, '').strip() or None
+            pg.expiry_date = parse_date(request.form.get('pg_expiry_date_' + pg_str_id))
+            pg.status = request.form.get('pg_status_' + pg_str_id, '').strip() or None
+            pg.status_date = parse_date(request.form.get('pg_status_date_' + pg_str_id))
+            pg.pg_receiver_name = request.form.get('pg_receiver_name_' + pg_str_id, '').strip() or None
+            pg.bi_officer = request.form.get('pg_bi_officer_' + pg_str_id, '').strip() or None
+            pg_ids_updated.add(pg.id)
+
+        # New PG
+        new_pg_bank = request.form.get('new_pg_bank_name', '').strip()
+        if new_pg_bank:
+            db.session.add(PerformanceGuarantee(
+                po_id=po.id,
+                bank_name=new_pg_bank,
+                requested_date=parse_date(request.form.get('new_pg_requested_date')),
+                received_date=parse_date(request.form.get('new_pg_received_date')),
+                confirmed_date=parse_date(request.form.get('new_pg_confirmed_date')),
+                pg_reference=request.form.get('new_pg_reference', '').strip() or None,
+                expiry_date=parse_date(request.form.get('new_pg_expiry_date')),
+                status=request.form.get('new_pg_status', '').strip() or None,
+                status_date=parse_date(request.form.get('new_pg_status_date')),
+                pg_receiver_name=request.form.get('new_pg_receiver_name', '').strip() or None,
+                bi_officer=request.form.get('new_pg_bi_officer', '').strip() or None,
+            ))
+
+        # Handle Letter of Credit
         lc = po.letter_of_credits.first()
         lc_status = request.form.get('lc_status', '').strip()
         if lc_status:

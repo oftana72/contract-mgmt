@@ -111,6 +111,54 @@
                         </div>
 
                         <div class="tab-pane fade" id="pgTab">
+                            {% set pg = po.performance_guarantees.first() %}
+                            {% if pg %}
+                            <div class="card card-body bg-light mb-3">
+                                <h6 class="card-title">Performance Guarantee Record</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">PG Requested Date</label>
+                                        <input type="date" name="pg_requested_date_{{ pg.id }}" class="form-control" value="{{ pg.requested_date.strftime('%Y-%m-%d') if pg.requested_date else '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">PG Received Date</label>
+                                        <input type="date" name="pg_received_date_{{ pg.id }}" class="form-control" value="{{ pg.received_date.strftime('%Y-%m-%d') if pg.received_date else '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Confirmed Date</label>
+                                        <input type="date" name="pg_confirmed_date_{{ pg.id }}" class="form-control" value="{{ pg.confirmed_date.strftime('%Y-%m-%d') if pg.confirmed_date else '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Bank Name</label>
+                                        <input type="text" name="pg_bank_name_{{ pg.id }}" class="form-control" value="{{ pg.bank_name or '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">PG Reference</label>
+                                        <input type="text" name="pg_reference_{{ pg.id }}" class="form-control" value="{{ pg.pg_reference or '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Expiry Date</label>
+                                        <input type="date" name="pg_expiry_date_{{ pg.id }}" class="form-control" value="{{ pg.expiry_date.strftime('%Y-%m-%d') if pg.expiry_date else '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">PG Status</label>
+                                        <input type="text" name="pg_status_{{ pg.id }}" class="form-control" value="{{ pg.status or '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Status Date</label>
+                                        <input type="date" name="pg_status_date_{{ pg.id }}" class="form-control" value="{{ pg.status_date.strftime('%Y-%m-%d') if pg.status_date else '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Receiver Name</label>
+                                        <input type="text" name="pg_receiver_name_{{ pg.id }}" class="form-control" value="{{ pg.pg_receiver_name or '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">BI Officer</label>
+                                        <input type="text" name="pg_bi_officer_{{ pg.id }}" class="form-control" value="{{ pg.bi_officer or '' }}">
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <label class="form-label">PG Expiry Date</label>
