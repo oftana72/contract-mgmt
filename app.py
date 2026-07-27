@@ -1229,6 +1229,54 @@ def reports():
     ).group_by('status').all()
     pg_status_map = dict(pg_status_data)
 
+    # KPI: PG Submission Lead Time = Received - Requested (days)
+    pg_lead = db.session.query(
+        func.datediff(PerformanceGuarantee.received_date, PerformanceGuarantee.requested_date).label('days')
+    ).filter(
+        PerformanceGuarantee.received_date.isnot(None),
+        PerformanceGuarantee.requested_date.isnot(None),
+        func.datediff(PerformanceGuarantee.received_date, PerformanceGuarantee.requested_date).isnot(None)
+    ).all()
+    pg_lead_days = [r.days for r in pg_lead if r.days is not None]
+    pg_lead_data = {}
+    if pg_lead_days:
+        pg_lead_data['count'] = len(pg_lead_days)
+        pg_lead_data['avg'] = sum(pg_lead_days) / len(pg_lead_days)
+        pg_lead_data['min'] = min(pg_lead_days)
+        pg_lead_data['max'] = max(pg_lead_days)
+        bins = {'0-7 days': 0, '8-14 days': 0, '15-30 days': 0, '31-60 days': 0, '>60 days': 0}
+        for d in pg_lead_days:
+            if d <= 7: bins['0-7 days'] += 1
+            elif d <= 14: bins['8-14 days'] += 1
+            elif d <= 30: bins['15-30 days'] += 1
+            elif d <= 60: bins['31-60 days'] += 1
+            else: bins['>60 days'] += 1
+        pg_lead_data['bins'] = bins
+
+    # KPI: Contract Dwelling at CAT = PO Transferred - Received (days)
+    dwell = db.session.query(
+        func.datediff(PurchaseOrder.po_transferred_date, PurchaseOrder.received_date).label('days')
+    ).filter(
+        PurchaseOrder.po_transferred_date.isnot(None),
+        PurchaseOrder.received_date.isnot(None),
+        func.datediff(PurchaseOrder.po_transferred_date, PurchaseOrder.received_date).isnot(None)
+    ).all()
+    dwell_days = [r.days for r in dwell if r.days is not None]
+    dwell_data = {}
+    if dwell_days:
+        dwell_data['count'] = len(dwell_days)
+        dwell_data['avg'] = sum(dwell_days) / len(dwell_days)
+        dwell_data['min'] = min(dwell_days)
+        dwell_data['max'] = max(dwell_days)
+        bins = {'0-30 days': 0, '31-60 days': 0, '61-90 days': 0, '91-180 days': 0, '>180 days': 0}
+        for d in dwell_days:
+            if d <= 30: bins['0-30 days'] += 1
+            elif d <= 60: bins['31-60 days'] += 1
+            elif d <= 90: bins['61-90 days'] += 1
+            elif d <= 180: bins['91-180 days'] += 1
+            else: bins['>180 days'] += 1
+        dwell_data['bins'] = bins
+
     closure_data = db.session.query(
         Shipment.order_closure,
         func.count(Shipment.id)
@@ -1265,7 +1313,8 @@ def reports():
                           lc_summary_data=lc_summary_data, lc_age_map=lc_age_map, lc_age_order=lc_age_order,
                           pg_status_map=pg_status_map, closure_data=closure_data,
                           source_year_data=source_year_data, source_year_names=source_year_names,
-                          source_year_years=source_year_years, source_year_totals=source_year_totals)
+                          source_year_years=source_year_years, source_year_totals=source_year_totals,
+                          pg_lead_data=pg_lead_data, dwell_data=dwell_data)
 
 @app.route('/api/pos')
 @login_required
