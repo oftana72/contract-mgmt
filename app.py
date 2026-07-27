@@ -1820,6 +1820,23 @@ def import_tsv_route():
         print(f'TSV import error: {e}\n{tb}', file=sys.stderr)
     return '<pre>' + '\n'.join(out) + '</pre>'
 
+@app.route('/admin/import-missing-pos', methods=['GET'])
+def import_missing_pos_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    import traceback, sys
+    out = ['Starting missing PO import from sheet...']
+    try:
+        from import_missing_pos import import_missing_pos
+        added = import_missing_pos()
+        out.append(f'Imported POs: {added}')
+    except Exception as e:
+        tb = traceback.format_exc()
+        out.append(f'ERROR: {e}')
+        out.append(tb)
+        print(f'Missing PO import error: {e}\n{tb}', file=sys.stderr)
+    return '<pre>' + '\n'.join(out) + '</pre>'
+
 @app.route('/admin/import-pg-sheet', methods=['GET'])
 def import_pg_sheet_route():
     if not current_user.is_authenticated or not current_user.is_admin:
