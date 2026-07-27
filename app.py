@@ -1230,14 +1230,13 @@ def reports():
     pg_status_map = dict(pg_status_data)
 
     # KPI: PG Submission Lead Time = Received - Requested (days)
-    pg_lead = db.session.query(
-        func.datediff(PerformanceGuarantee.received_date, PerformanceGuarantee.requested_date).label('days')
+    pg_lead_raw = PerformanceGuarantee.query.with_entities(
+        PerformanceGuarantee.received_date, PerformanceGuarantee.requested_date
     ).filter(
         PerformanceGuarantee.received_date.isnot(None),
-        PerformanceGuarantee.requested_date.isnot(None),
-        func.datediff(PerformanceGuarantee.received_date, PerformanceGuarantee.requested_date).isnot(None)
+        PerformanceGuarantee.requested_date.isnot(None)
     ).all()
-    pg_lead_days = [r.days for r in pg_lead if r.days is not None]
+    pg_lead_days = [(r.received_date - r.requested_date).days for r in pg_lead_raw if r.received_date and r.requested_date]
     pg_lead_data = {}
     if pg_lead_days:
         pg_lead_data['count'] = len(pg_lead_days)
@@ -1254,14 +1253,13 @@ def reports():
         pg_lead_data['bins'] = bins
 
     # KPI: Contract Dwelling at CAT = PO Transferred - Received (days)
-    dwell = db.session.query(
-        func.datediff(PurchaseOrder.po_transferred_date, PurchaseOrder.received_date).label('days')
+    dwell_raw = PurchaseOrder.query.with_entities(
+        PurchaseOrder.po_transferred_date, PurchaseOrder.received_date
     ).filter(
         PurchaseOrder.po_transferred_date.isnot(None),
-        PurchaseOrder.received_date.isnot(None),
-        func.datediff(PurchaseOrder.po_transferred_date, PurchaseOrder.received_date).isnot(None)
+        PurchaseOrder.received_date.isnot(None)
     ).all()
-    dwell_days = [r.days for r in dwell if r.days is not None]
+    dwell_days = [(r.po_transferred_date - r.received_date).days for r in dwell_raw if r.po_transferred_date and r.received_date]
     dwell_data = {}
     if dwell_days:
         dwell_data['count'] = len(dwell_days)
