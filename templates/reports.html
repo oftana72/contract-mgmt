@@ -268,29 +268,44 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header"><i class="bi bi-clock-history"></i> PG Submission Lead Time (Received - Requested)</div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if pg_lead_data %}
-                <div class="row text-center mb-3">
-                    <div class="col-3"><strong>{{ pg_lead_data.count }}</strong><br><small>Records</small></div>
-                    <div class="col-3"><strong>{{ "{:.0f}".format(pg_lead_data.avg) }}</strong><br><small>Avg Days</small></div>
-                    <div class="col-3"><strong>{{ pg_lead_data.min }}</strong><br><small>Min Days</small></div>
-                    <div class="col-3"><strong>{{ pg_lead_data.max }}</strong><br><small>Max Days</small></div>
-                </div>
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <thead><tr><th>Range</th><th>Count</th></tr></thead>
-                        <tbody>
-                            {% for range_name in ['0-7 days', '8-14 days', '15-30 days', '31-60 days', '>60 days'] %}
+                    <table class="table mb-0 table-sm">
+                        <thead>
                             <tr>
-                                <td>{{ range_name }}</td>
-                                <td>{{ pg_lead_data.bins.get(range_name, 0) }}</td>
+                                <th rowspan="2">Budget Year</th>
+                                <th rowspan="2">Records</th>
+                                <th rowspan="2">Avg<br><small>Days</small></th>
+                                <th rowspan="2">Min</th>
+                                <th rowspan="2">Max</th>
+                                <th colspan="5" class="text-center">Distribution</th>
+                            </tr>
+                            <tr>
+                                {% for r in ['0-7d','8-14d','15-30d','31-60d','>60d'] %}
+                                <th class="text-end">{{ r }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for y in pg_lead_years %}
+                            {% set d = pg_lead_data[y] %}
+                            <tr>
+                                <td><strong>{{ y }}</strong></td>
+                                <td>{{ d.count }}</td>
+                                <td>{{ "{:.0f}".format(d.avg) }}</td>
+                                <td>{{ d.min }}</td>
+                                <td>{{ d.max }}</td>
+                                {% for r in ['0-7 days','8-14 days','15-30 days','31-60 days','>60 days'] %}
+                                <td class="text-end">{{ d.bins.get(r, 0) }}</td>
+                                {% endfor %}
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted mb-0">No data available</p>
+                <div class="card-body"><p class="text-muted mb-0">No data available</p></div>
                 {% endif %}
             </div>
         </div>
@@ -298,29 +313,44 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header"><i class="bi bi-building"></i> Contract Dwelling at CAT (Transferred - Received)</div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if dwell_data %}
-                <div class="row text-center mb-3">
-                    <div class="col-3"><strong>{{ dwell_data.count }}</strong><br><small>Records</small></div>
-                    <div class="col-3"><strong>{{ "{:.0f}".format(dwell_data.avg) }}</strong><br><small>Avg Days</small></div>
-                    <div class="col-3"><strong>{{ dwell_data.min }}</strong><br><small>Min Days</small></div>
-                    <div class="col-3"><strong>{{ dwell_data.max }}</strong><br><small>Max Days</small></div>
-                </div>
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <thead><tr><th>Range</th><th>Count</th></tr></thead>
-                        <tbody>
-                            {% for range_name in ['0-30 days', '31-60 days', '61-90 days', '91-180 days', '>180 days'] %}
+                    <table class="table mb-0 table-sm">
+                        <thead>
                             <tr>
-                                <td>{{ range_name }}</td>
-                                <td>{{ dwell_data.bins.get(range_name, 0) }}</td>
+                                <th rowspan="2">Budget Year</th>
+                                <th rowspan="2">Records</th>
+                                <th rowspan="2">Avg<br><small>Days</small></th>
+                                <th rowspan="2">Min</th>
+                                <th rowspan="2">Max</th>
+                                <th colspan="5" class="text-center">Distribution</th>
+                            </tr>
+                            <tr>
+                                {% for r in ['0-30d','31-60d','61-90d','91-180d','>180d'] %}
+                                <th class="text-end">{{ r }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for y in dwell_years %}
+                            {% set d = dwell_data[y] %}
+                            <tr>
+                                <td><strong>{{ y }}</strong></td>
+                                <td>{{ d.count }}</td>
+                                <td>{{ "{:.0f}".format(d.avg) }}</td>
+                                <td>{{ d.min }}</td>
+                                <td>{{ d.max }}</td>
+                                {% for r in ['0-30 days','31-60 days','61-90 days','91-180 days','>180 days'] %}
+                                <td class="text-end">{{ d.bins.get(r, 0) }}</td>
+                                {% endfor %}
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted mb-0">No data available</p>
+                <div class="card-body"><p class="text-muted mb-0">No data available</p></div>
                 {% endif %}
             </div>
         </div>
