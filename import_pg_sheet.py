@@ -34,8 +34,14 @@ def import_pg_from_sheet(url=None):
         bank = row[20].strip() if len(row) > 20 and row[20].strip() else None
         ref = row[21].strip() if len(row) > 21 and row[21].strip() else None
         pg_exp = parse_date(row[22].strip()) if len(row) > 22 and row[22].strip() else None
+        remain_days = row[23].strip() if len(row) > 23 and row[23].strip() else None
+        submit_pg = row[24].strip() if len(row) > 24 and row[24].strip() else None
+        pg_status = row[25].strip() if len(row) > 25 and row[25].strip() else None
+        status_date = parse_date(row[26].strip()) if len(row) > 26 and row[26].strip() else None
+        receiver = row[27].strip() if len(row) > 27 and row[27].strip() else None
+        bi_officer = row[28].strip() if len(row) > 28 and row[28].strip() else None
         
-        if not any([pg_req, pg_recv, pg_conf, bank, ref, pg_exp]):
+        if not any([pg_req, pg_recv, pg_conf, bank, ref, pg_exp, pg_status, receiver, bi_officer]):
             continue
         
         po = PurchaseOrder.query.filter_by(po_number=po_number).first()
@@ -51,6 +57,10 @@ def import_pg_from_sheet(url=None):
             if bank: pg.bank_name = bank
             if ref: pg.pg_reference = ref
             if pg_exp: pg.expiry_date = pg_exp
+            if pg_status: pg.status = pg_status
+            if status_date: pg.status_date = status_date
+            if receiver: pg.pg_receiver_name = receiver
+            if bi_officer: pg.bi_officer = bi_officer
         else:
             db.session.add(PerformanceGuarantee(
                 po_id=po.id,
@@ -60,6 +70,10 @@ def import_pg_from_sheet(url=None):
                 bank_name=bank,
                 pg_reference=ref,
                 expiry_date=pg_exp,
+                status=pg_status,
+                status_date=status_date,
+                pg_receiver_name=receiver,
+                bi_officer=bi_officer,
             ))
         
         # Also update PO-level PG expiry if not set
