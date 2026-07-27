@@ -113,18 +113,13 @@
                 {% set pg = po.performance_guarantees.first() %}
                 {% if pg %}
                 <div class="row mb-1">
-                    <div class="col-md-6"><strong>Bank:</strong> {{ pg.bank_name or '-' }}</div>
-                    <div class="col-md-6"><strong>Reference:</strong> {{ pg.pg_reference or '-' }}</div>
-                </div>
-                <div class="row mb-1">
                     <div class="col-md-4"><strong>Requested Date:</strong> {{ pg.requested_date.strftime('%Y-%m-%d') if pg.requested_date else '-' }}</div>
                     <div class="col-md-4"><strong>Received Date:</strong> {{ pg.received_date.strftime('%Y-%m-%d') if pg.received_date else '-' }}</div>
                     <div class="col-md-4"><strong>Confirmed Date:</strong> {{ pg.confirmed_date.strftime('%Y-%m-%d') if pg.confirmed_date else '-' }}</div>
                 </div>
                 <div class="row mb-1">
-                    <div class="col-md-4"><strong>Expiry Date:</strong> {{ pg.expiry_date.strftime('%Y-%m-%d') if pg.expiry_date else '-' }}</div>
-                    <div class="col-md-4"><strong>BI Officer:</strong> {{ pg.bi_officer or '-' }}</div>
-                    <div class="col-md-4"><strong>Receiver:</strong> {{ pg.pg_receiver_name or '-' }}</div>
+                    <div class="col-md-6"><strong>Bank:</strong> {{ pg.bank_name or '-' }}</div>
+                    <div class="col-md-6"><strong>Reference:</strong> {{ pg.pg_reference or '-' }}</div>
                 </div>
                 {% endif %}
                 <div class="mb-1"><strong>Expiry Date:</strong> {{ po.pg_expiry_date.strftime('%Y-%m-%d') if po.pg_expiry_date else '-' }}</div>

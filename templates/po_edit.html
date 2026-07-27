@@ -128,33 +128,13 @@
                                         <label class="form-label">Confirmed Date</label>
                                         <input type="date" name="pg_confirmed_date_{{ pg.id }}" class="form-control" value="{{ pg.confirmed_date.strftime('%Y-%m-%d') if pg.confirmed_date else '' }}">
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label">Bank Name</label>
                                         <input type="text" name="pg_bank_name_{{ pg.id }}" class="form-control" value="{{ pg.bank_name or '' }}">
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label">PG Reference</label>
                                         <input type="text" name="pg_reference_{{ pg.id }}" class="form-control" value="{{ pg.pg_reference or '' }}">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Expiry Date</label>
-                                        <input type="date" name="pg_expiry_date_{{ pg.id }}" class="form-control" value="{{ pg.expiry_date.strftime('%Y-%m-%d') if pg.expiry_date else '' }}">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">PG Status</label>
-                                        <input type="text" name="pg_status_{{ pg.id }}" class="form-control" value="{{ pg.status or '' }}">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Status Date</label>
-                                        <input type="date" name="pg_status_date_{{ pg.id }}" class="form-control" value="{{ pg.status_date.strftime('%Y-%m-%d') if pg.status_date else '' }}">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Receiver Name</label>
-                                        <input type="text" name="pg_receiver_name_{{ pg.id }}" class="form-control" value="{{ pg.pg_receiver_name or '' }}">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">BI Officer</label>
-                                        <input type="text" name="pg_bi_officer_{{ pg.id }}" class="form-control" value="{{ pg.bi_officer or '' }}">
                                     </div>
                                     {% else %}
                                     <div class="col-md-4">
@@ -169,33 +149,13 @@
                                         <label class="form-label">Confirmed Date</label>
                                         <input type="date" name="new_pg_confirmed_date" class="form-control">
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label">Bank Name</label>
                                         <input type="text" name="new_pg_bank_name" class="form-control">
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <label class="form-label">PG Reference</label>
                                         <input type="text" name="new_pg_reference" class="form-control">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Expiry Date</label>
-                                        <input type="date" name="new_pg_expiry_date" class="form-control">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">PG Status</label>
-                                        <input type="text" name="new_pg_status" class="form-control">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Status Date</label>
-                                        <input type="date" name="new_pg_status_date" class="form-control">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Receiver Name</label>
-                                        <input type="text" name="new_pg_receiver_name" class="form-control">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">BI Officer</label>
-                                        <input type="text" name="new_pg_bi_officer" class="form-control">
                                     </div>
                                     {% endif %}
                                 </div>
