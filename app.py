@@ -1820,6 +1820,27 @@ def import_tsv_route():
         print(f'TSV import error: {e}\n{tb}', file=sys.stderr)
     return '<pre>' + '\n'.join(out) + '</pre>'
 
+@app.route('/admin/import-pg-sheet', methods=['GET'])
+def import_pg_sheet_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    import traceback, sys
+    out = ['Starting PG sheet import...']
+    try:
+        from import_pg_sheet import import_pg_from_sheet
+        updated, errors = import_pg_from_sheet()
+        out.append(f'Updated POs: {updated}')
+        if errors:
+            out.append(f'Errors ({len(errors)}):')
+            for e in errors[:20]:
+                out.append(f'  {e}')
+    except Exception as e:
+        tb = traceback.format_exc()
+        out.append(f'ERROR: {e}')
+        out.append(tb)
+        print(f'PG sheet import error: {e}\n{tb}', file=sys.stderr)
+    return '<pre>' + '\n'.join(out) + '</pre>'
+
 @app.route('/admin/fix-sheet2', methods=['GET'])
 def fix_sheet2_route():
     if not current_user.is_authenticated or not current_user.is_admin:
