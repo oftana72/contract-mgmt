@@ -226,7 +226,8 @@ class ItemShipmentDetail(db.Model):
     cleared_to_wh_date = db.Column(Date)
     airway_bill = db.Column(String(200))
     airway_bill_date = db.Column(Date)
-    carton_pallet_qty = db.Column(Integer)
+    carton_qty = db.Column(Integer)
+    pallet_qty = db.Column(Integer)
     shipping_doc_received_date = db.Column(Date)
     vehicle_requested_date = db.Column(Date)
     created_at = db.Column(Date, default=date.today)
@@ -1604,7 +1605,8 @@ def api_po_shipment_detail(po_id):
             'cleared_to_wh_date': str(d.cleared_to_wh_date) if d.cleared_to_wh_date else None,
             'airway_bill': d.airway_bill,
             'airway_bill_date': str(d.airway_bill_date) if d.airway_bill_date else None,
-            'carton_pallet_qty': d.carton_pallet_qty,
+            'carton_qty': d.carton_qty,
+            'pallet_qty': d.pallet_qty,
             'shipping_doc_received_date': str(d.shipping_doc_received_date) if d.shipping_doc_received_date else None,
             'vehicle_requested_date': str(d.vehicle_requested_date) if d.vehicle_requested_date else None,
         } for d in details])
@@ -1636,7 +1638,8 @@ def api_po_shipment_detail(po_id):
     d.cleared_to_wh_date = parse_date(data.get('cleared_to_wh_date'))
     d.airway_bill = (data.get('airway_bill') or '').strip()
     d.airway_bill_date = parse_date(data.get('airway_bill_date'))
-    d.carton_pallet_qty = _int(data.get('carton_pallet_qty'))
+    d.carton_qty = _int(data.get('carton_qty'))
+    d.pallet_qty = _int(data.get('pallet_qty'))
     d.shipping_doc_received_date = parse_date(data.get('shipping_doc_received_date'))
     d.vehicle_requested_date = parse_date(data.get('vehicle_requested_date'))
     db.session.commit()
