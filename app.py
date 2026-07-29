@@ -234,6 +234,18 @@ class ItemShipmentDetail(db.Model):
     item = db.relationship('LineItem', backref='shipment_details',
         primaryjoin='foreign(ItemShipmentDetail.item_id) == LineItem.id')
 
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+    __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
+    id = db.Column(Integer, primary_key=True)
+    table_name = db.Column(String(50), nullable=False)
+    record_id = db.Column(Integer, nullable=False)
+    field_name = db.Column(String(100))
+    old_value = db.Column(Text)
+    new_value = db.Column(Text)
+    changed_by = db.Column(String(80))
+    changed_at = db.Column(DateTime, default=datetime.now)
+
 class BIOfficer(db.Model):
     __tablename__ = 'bi_officers'
     id = db.Column(Integer, primary_key=True)
@@ -628,6 +640,17 @@ with app.app_context():
         print(f'Startup init error: {e}')
         traceback.print_exc()
 
+def log_audit(table_name, record_id, field_name, old_value, new_value, changed_by=None):
+    try:
+        a = AuditLog(table_name=table_name, record_id=record_id, field_name=field_name,
+                     old_value=str(old_value) if old_value is not None else None,
+                     new_value=str(new_value) if new_value is not None else None,
+                     changed_by=changed_by or (current_user.username if hasattr(current_user, 'username') else 'system'),
+                     changed_at=datetime.now())
+        db.session.add(a)
+    except:
+        pass
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -1002,6 +1025,19 @@ def po_edit(po_id):
         flash('Permission denied', 'danger')
         return redirect(url_for('po_detail', po_id=po_id))
     if request.method == 'POST':
+        # Capture old values for audit
+        _old = {
+            'received_date': po.received_date,
+            'mode_of_shipment': po.mode_of_shipment,
+            'po_transferred_date': po.po_transferred_date,
+            'total_po_amount': po.total_po_amount,
+            'currency': po.currency,
+            'pg_status': po.pg_status,
+            'pg_expiry_date': po.pg_expiry_date,
+        }
+        _old_pg = {}
+        for pg in po.performance_guarantees.all():
+            _old_pg[pg.id] = {f: getattr(pg, f) for f in ['requested_date', 'received_date', 'confirmed_date']}
         po.received_date = parse_date(request.form.get('received_date'))
         po.budget_year = budget_year(po.received_date)
         po.tender_reference = request.form.get('tender_reference', '').strip()
@@ -1153,6 +1189,17 @@ def po_edit(po_id):
                 db.session.add(LineItem(po_id=po.id, description=desc, unit=unit,
                     quantity=qty, unit_price=up, total_price=tp))
 
+        # Audit log key changes
+        username = current_user.username
+        for field, new_val in _old.items():
+            cur = getattr(po, field)
+            if str(_old[field] or '') != str(cur or ''):
+                log_audit('purchase_orders', po.id, field, str(_old[field] or ''), str(cur or ''), username)
+        for pg in po.performance_guarantees.all():
+            if pg.id in _old_pg:
+                for f in ['requested_date', 'received_date', 'confirmed_date']:
+                    if str(_old_pg[pg.id][f] or '') != str(getattr(pg, f) or ''):
+                        log_audit('performance_guarantees', pg.id, f, str(_old_pg[pg.id][f] or ''), str(getattr(pg, f) or ''), username)
         db.session.commit()
         flash('PO updated', 'success')
         return redirect(url_for('po_detail', po_id=po.id))
@@ -1643,6 +1690,20 @@ def api_po_shipment_detail(po_id):
     d.shipping_doc_received_date = parse_date(data.get('shipping_doc_received_date'))
     d.vehicle_requested_date = parse_date(data.get('vehicle_requested_date'))
     db.session.commit()
+    try:
+        username = current_user.username if hasattr(current_user, 'username') else 'system'
+        for f in ['mode', 'bill_of_lading', 'bill_on_board_date', 'container_40_qty', 'container_20_qty',
+                  'port_arrival_date', 'pre_arrival_customs_date', 'original_doc_received_date',
+                  'customs_assessment_date', 'efda_inspection_date', 'customs_release_date',
+                  'efda_release_date', 'cleared_to_wh_date', 'airway_bill', 'airway_bill_date',
+                  'carton_qty', 'pallet_qty', 'shipping_doc_received_date', 'vehicle_requested_date']:
+            old = getattr(d, f, None)
+            new_raw = data.get(f)
+            new_val = str(d.__class__.__table__.c[f].type) if hasattr(d.__class__.__table__.c, f) else None
+            if str(old or '') != str(new_raw or ''):
+                log_audit('item_shipment_details', d.id, f, str(old or ''), str(new_raw or ''), username)
+    except:
+        pass
     return jsonify({'ok': True, 'id': d.id})
 
 @app.route('/api/pos/<int:po_id>/shipment-detail/<int:sd_id>', methods=['DELETE'])
