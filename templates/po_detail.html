@@ -199,6 +199,259 @@
     </div>
 </div>
 
+<div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-truck"></i> Item Shipment Details</span>
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#shipDetailModal" onclick="newShipDetail()">
+            <i class="bi bi-plus"></i> Add
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0" id="shipDetailTable">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Mode</th>
+                        <th>Ref #</th>
+                        <th>Port Arrival</th>
+                        <th>Customs Rel.</th>
+                        <th>Cleared to WH</th>
+                        <th style="width:80px"></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Shipment Detail Modal -->
+<div class="modal fade" id="shipDetailModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Shipment Detail</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="shipDetailForm">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="sd_id">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Mode</label>
+                            <select name="mode" id="sd_mode" class="form-select" onchange="toggleShipMode()">
+                                <option value="">--</option>
+                                <option value="Sea">Sea</option>
+                                <option value="Air">Air</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Item</label>
+                            <select name="item_id" id="sd_item_id" class="form-select">
+                                <option value="">All Items</option>
+                                {% for item in po.line_items %}
+                                <option value="{{ item.id }}">{{ item.description[:60] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6 id="sea_fields_header" class="text-primary">Sea Shipment Fields</h6>
+                    <div id="sea_fields">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Bill of Lading</label>
+                                <input type="text" name="bill_of_lading" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Bill on Board Date</label>
+                                <input type="date" name="bill_on_board_date" class="form-control">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Container 40ft</label>
+                                <input type="number" name="container_40_qty" class="form-control" min="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Container 20ft</label>
+                                <input type="number" name="container_20_qty" class="form-control" min="0">
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label">Pre-arrival Customs Assessment Req. Date</label>
+                                <input type="date" name="pre_arrival_customs_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Original Document Received Date</label>
+                                <input type="date" name="original_doc_received_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Port Arrival Date</label>
+                                <input type="date" name="port_arrival_date" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    <h6 id="air_fields_header" class="text-success">Air Shipment Fields</h6>
+                    <div id="air_fields">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Airway Bill</label>
+                                <input type="text" name="airway_bill" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Airway Bill Date</label>
+                                <input type="date" name="airway_bill_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Carton/Pallet Qty</label>
+                                <input type="number" name="carton_pallet_qty" class="form-control" min="0">
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label">Port Arrival Date</label>
+                                <input type="date" name="port_arrival_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Shipping Document Received Date</label>
+                                <input type="date" name="shipping_doc_received_date" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    <h6 id="common_fields_header" class="text-secondary">Common Fields</h6>
+                    <div id="common_fields">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Customs Assessment Requested Date</label>
+                                <input type="date" name="customs_assessment_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">EFDA Inspection Requested Date</label>
+                                <input type="date" name="efda_inspection_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Vehicle Requested Date <small>(Air only)</small></label>
+                                <input type="date" name="vehicle_requested_date" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label class="form-label">Customs Release Date</label>
+                                <input type="date" name="customs_release_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">EFDA Release Date</label>
+                                <input type="date" name="efda_release_date" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Cleared to Warehouse Date</label>
+                                <input type="date" name="cleared_to_wh_date" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let poId = {{ po.id }};
+
+function toggleShipMode() {
+    var mode = document.getElementById('sd_mode').value;
+    document.getElementById('sea_fields').style.display = (mode === 'Sea') ? '' : 'none';
+    document.getElementById('sea_fields_header').style.display = (mode === 'Sea') ? '' : 'none';
+    document.getElementById('air_fields').style.display = (mode === 'Air') ? '' : 'none';
+    document.getElementById('air_fields_header').style.display = (mode === 'Air') ? '' : 'none';
+}
+toggleShipMode();
+
+function loadShipDetails() {
+    fetch('/api/pos/' + poId + '/shipment-detail')
+    .then(r => r.json())
+    .then(data => {
+        var tbody = document.querySelector('#shipDetailTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(function(d) {
+            var ref = d.mode === 'Sea' ? (d.bill_of_lading || '') : (d.airway_bill || '');
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td>' + (d.item_name || 'All Items') + '</td>' +
+                '<td><span class="badge bg-' + (d.mode === 'Sea' ? 'primary' : 'success') + '">' + (d.mode || '') + '</span></td>' +
+                '<td>' + ref + '</td>' +
+                '<td>' + (d.port_arrival_date || '') + '</td>' +
+                '<td>' + (d.customs_release_date || '') + '</td>' +
+                '<td>' + (d.cleared_to_wh_date || '') + '</td>' +
+                '<td>' +
+                '<button class="btn btn-sm btn-outline-primary me-1" onclick="editShipDetail(' + d.id + ')"><i class="bi bi-pencil"></i></button>' +
+                '<button class="btn btn-sm btn-outline-danger" onclick="deleteShipDetail(' + d.id + ')"><i class="bi bi-trash"></i></button>' +
+                '</td>';
+            tbody.appendChild(tr);
+        });
+    });
+}
+
+function newShipDetail() {
+    document.getElementById('shipDetailForm').reset();
+    document.getElementById('sd_id').value = '';
+    toggleShipMode();
+}
+
+function editShipDetail(id) {
+    fetch('/api/pos/' + poId + '/shipment-detail')
+    .then(r => r.json())
+    .then(data => {
+        var d = data.find(x => x.id === id);
+        if (!d) return;
+        document.getElementById('sd_id').value = d.id;
+        document.getElementById('sd_mode').value = d.mode || '';
+        document.getElementById('sd_item_id').value = d.item_id || '';
+        document.getElementById('sd_mode').value = d.mode || '';
+        Object.keys(d).forEach(function(k) {
+            var el = document.querySelector('[name="' + k + '"]');
+            if (el && k !== 'id' && k !== 'item_name' && k !== 'mode') {
+                el.value = d[k] || '';
+            }
+        });
+        toggleShipMode();
+        var modal = new bootstrap.Modal(document.getElementById('shipDetailModal'));
+        modal.show();
+    });
+}
+
+function deleteShipDetail(id) {
+    if (!confirm('Delete this shipment detail?')) return;
+    fetch('/api/pos/' + poId + '/shipment-detail/' + id, {method: 'DELETE'})
+    .then(r => r.json())
+    .then(function() { loadShipDetails(); });
+}
+
+document.getElementById('shipDetailForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var data = {};
+    new FormData(form).forEach(function(v, k) { data[k] = v; });
+    fetch('/api/pos/' + poId + '/shipment-detail', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(function() {
+        var modal = bootstrap.Modal.getInstance(document.getElementById('shipDetailModal'));
+        modal.hide();
+        loadShipDetails();
+    });
+});
+
+loadShipDetails();
+</script>
+
 <!-- Delete Confirmation Modal -->
 {% if current_user.is_admin %}
 <div class="modal fade" id="deleteModal" tabindex="-1">

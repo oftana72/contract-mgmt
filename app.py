@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Integer, String, Float, Date, Text, ForeignKey, func, or_, distinct, case as sa_case
+from sqlalchemy.orm import foreign
 from dateutil import parser as dateparser
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -112,6 +113,8 @@ class PurchaseOrder(db.Model):
     performance_guarantees = db.relationship('PerformanceGuarantee', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     letter_of_credits = db.relationship('LetterOfCredit', backref='po', lazy='dynamic', cascade='all, delete-orphan')
     shipments = db.relationship('Shipment', backref='po', lazy='dynamic', cascade='all, delete-orphan')
+    item_shipment_details = db.relationship('ItemShipmentDetail', backref='po', lazy='dynamic', cascade='all, delete-orphan',
+        primaryjoin='PurchaseOrder.id == foreign(ItemShipmentDetail.po_id)')
     pg_expiry_date = db.Column(Date)
     pg_status = db.Column(String(20))
     pg_days_left_frozen = db.Column(Integer)
@@ -201,6 +204,34 @@ class Shipment(db.Model):
     shipment_officer = db.Column(String(100))
     shipment_status = db.Column(String(100))
     order_closure = db.Column(String(50))
+
+class ItemShipmentDetail(db.Model):
+    __tablename__ = 'item_shipment_details'
+    __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
+    id = db.Column(Integer, primary_key=True)
+    po_id = db.Column(Integer, nullable=False)
+    item_id = db.Column(Integer, nullable=True)
+    mode = db.Column(String(10))
+    bill_of_lading = db.Column(String(200))
+    bill_on_board_date = db.Column(Date)
+    container_40_qty = db.Column(Integer)
+    container_20_qty = db.Column(Integer)
+    port_arrival_date = db.Column(Date)
+    pre_arrival_customs_date = db.Column(Date)
+    original_doc_received_date = db.Column(Date)
+    customs_assessment_date = db.Column(Date)
+    efda_inspection_date = db.Column(Date)
+    customs_release_date = db.Column(Date)
+    efda_release_date = db.Column(Date)
+    cleared_to_wh_date = db.Column(Date)
+    airway_bill = db.Column(String(200))
+    airway_bill_date = db.Column(Date)
+    carton_pallet_qty = db.Column(Integer)
+    shipping_doc_received_date = db.Column(Date)
+    vehicle_requested_date = db.Column(Date)
+    created_at = db.Column(Date, default=date.today)
+    item = db.relationship('LineItem', backref='shipment_details',
+        primaryjoin='foreign(ItemShipmentDetail.item_id) == LineItem.id')
 
 class BIOfficer(db.Model):
     __tablename__ = 'bi_officers'
@@ -1547,6 +1578,77 @@ def api_po_items(po_id):
         'quantity': i.quantity,
         'unit_price': i.unit_price
     } for i in items])
+
+@app.route('/api/pos/<int:po_id>/shipment-detail', methods=['GET', 'POST'])
+@login_required
+def api_po_shipment_detail(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    if request.method == 'GET':
+        details = ItemShipmentDetail.query.filter_by(po_id=po_id).order_by(ItemShipmentDetail.id).all()
+        return jsonify([{
+            'id': d.id,
+            'item_id': d.item_id,
+            'item_name': d.item.description if d.item else '(All Items)',
+            'mode': d.mode,
+            'bill_of_lading': d.bill_of_lading,
+            'bill_on_board_date': str(d.bill_on_board_date) if d.bill_on_board_date else None,
+            'container_40_qty': d.container_40_qty,
+            'container_20_qty': d.container_20_qty,
+            'port_arrival_date': str(d.port_arrival_date) if d.port_arrival_date else None,
+            'pre_arrival_customs_date': str(d.pre_arrival_customs_date) if d.pre_arrival_customs_date else None,
+            'original_doc_received_date': str(d.original_doc_received_date) if d.original_doc_received_date else None,
+            'customs_assessment_date': str(d.customs_assessment_date) if d.customs_assessment_date else None,
+            'efda_inspection_date': str(d.efda_inspection_date) if d.efda_inspection_date else None,
+            'customs_release_date': str(d.customs_release_date) if d.customs_release_date else None,
+            'efda_release_date': str(d.efda_release_date) if d.efda_release_date else None,
+            'cleared_to_wh_date': str(d.cleared_to_wh_date) if d.cleared_to_wh_date else None,
+            'airway_bill': d.airway_bill,
+            'airway_bill_date': str(d.airway_bill_date) if d.airway_bill_date else None,
+            'carton_pallet_qty': d.carton_pallet_qty,
+            'shipping_doc_received_date': str(d.shipping_doc_received_date) if d.shipping_doc_received_date else None,
+            'vehicle_requested_date': str(d.vehicle_requested_date) if d.vehicle_requested_date else None,
+        } for d in details])
+    data = request.get_json()
+    mode = (data.get('mode') or po.mode_of_shipment or '').strip()
+    sid = data.get('id')
+    if sid:
+        d = ItemShipmentDetail.query.get_or_404(sid)
+    else:
+        d = ItemShipmentDetail(po_id=po_id)
+        db.session.add(d)
+    def _int(v):
+        if v is None or str(v).strip() == '': return None
+        try: return int(float(str(v)))
+        except: return None
+    d.mode = mode
+    d.item_id = data.get('item_id') or None
+    d.bill_of_lading = (data.get('bill_of_lading') or '').strip()
+    d.bill_on_board_date = parse_date(data.get('bill_on_board_date'))
+    d.container_40_qty = _int(data.get('container_40_qty'))
+    d.container_20_qty = _int(data.get('container_20_qty'))
+    d.port_arrival_date = parse_date(data.get('port_arrival_date'))
+    d.pre_arrival_customs_date = parse_date(data.get('pre_arrival_customs_date'))
+    d.original_doc_received_date = parse_date(data.get('original_doc_received_date'))
+    d.customs_assessment_date = parse_date(data.get('customs_assessment_date'))
+    d.efda_inspection_date = parse_date(data.get('efda_inspection_date'))
+    d.customs_release_date = parse_date(data.get('customs_release_date'))
+    d.efda_release_date = parse_date(data.get('efda_release_date'))
+    d.cleared_to_wh_date = parse_date(data.get('cleared_to_wh_date'))
+    d.airway_bill = (data.get('airway_bill') or '').strip()
+    d.airway_bill_date = parse_date(data.get('airway_bill_date'))
+    d.carton_pallet_qty = _int(data.get('carton_pallet_qty'))
+    d.shipping_doc_received_date = parse_date(data.get('shipping_doc_received_date'))
+    d.vehicle_requested_date = parse_date(data.get('vehicle_requested_date'))
+    db.session.commit()
+    return jsonify({'ok': True, 'id': d.id})
+
+@app.route('/api/pos/<int:po_id>/shipment-detail/<int:sd_id>', methods=['DELETE'])
+@login_required
+def api_delete_shipment_detail(po_id, sd_id):
+    d = ItemShipmentDetail.query.get_or_404(sd_id)
+    db.session.delete(d)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/suppliers')
 @login_required
