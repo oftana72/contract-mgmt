@@ -242,8 +242,8 @@
                             <label class="form-label">Mode</label>
                             <select name="mode" id="sd_mode" class="form-select" onchange="toggleShipMode()">
                                 <option value="">--</option>
-                                <option value="Sea">Sea</option>
-                                <option value="Air">Air</option>
+                                <option value="Sea" {{ 'selected' if po.mode_of_shipment == 'Sea' }}>Sea</option>
+                                <option value="Air" {{ 'selected' if po.mode_of_shipment == 'Air' }}>Air</option>
                             </select>
                         </div>
                         <div class="col-md-8">
@@ -399,6 +399,10 @@ function loadShipDetails() {
 function newShipDetail() {
     document.getElementById('shipDetailForm').reset();
     document.getElementById('sd_id').value = '';
+    var poMode = '{{ po.mode_of_shipment or '' }}';
+    if (poMode) {
+        document.getElementById('sd_mode').value = poMode;
+    }
     toggleShipMode();
 }
 
