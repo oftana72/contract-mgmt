@@ -152,9 +152,10 @@ class PurchaseOrder(db.Model):
     @property
     def pg_submit_days(self):
         pg = self.performance_guarantees.first()
-        if not pg or not pg.requested_date or not pg.received_date:
+        if not pg or not pg.requested_date:
             return None
-        delta = (pg.received_date - pg.requested_date).days
+        end = pg.received_date if pg.received_date else date.today()
+        delta = (end - pg.requested_date).days
         return delta
 
 class LineItem(db.Model):
