@@ -22,6 +22,41 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+CANONICAL_BUDGET = {
+    'GF': 'GF', 'GF/HIV': 'GF', 'GF-HAPCO/HIV-RTK/': 'GF', 'GF-HIV': 'GF',
+    'GF-HIV- GC7-0001-011': 'GF', 'GF-HIV-GC7': 'GF', 'GF-HIV-GC7-0001-011': 'GF',
+    'GF-LAB-23-001-011': 'GF', 'GF-MAL': 'GF', 'GF-MAL-GC7': 'GF', 'GF-MH': 'GF',
+    'GF-CBHIV': 'GF', 'GF-NFM': 'GF', 'GF-NFM2': 'GF',
+    'GF-OTH-23': 'GF', 'GF-OTH-23-001-011': 'GF', 'GF-TB': 'GF', 'GF-TB-GC': 'GF',
+    'GF-TB-GC7': 'GF', 'Global Fund': 'GF',
+    'HP': 'SDG', 'HP/ SDG': 'SDG', 'MOH': 'SDG', 'MOH - RMNCH': 'SDG',
+    'MOH-CH': 'SDG', 'MOH-CH-23': 'SDG', 'MOH-FH': 'SDG', 'MOH-HIV': 'SDG',
+    'MOH-IA4DC-': 'SDG', 'MOH-MAL': 'SDG', 'MOH-Mal': 'SDG', 'MOH-ME': 'SDG',
+    'MOH-MVD-25-001-011': 'SDG', 'MOH-RMNCH': 'SDG', 'MOH-RMNCH-CMPT': 'SDG',
+    'MOH-RMNCH-CMPT-26': 'SDG', 'MOH-RMNCH-CPT': 'SDG', 'MOH-RNMCH-CMPT': 'SDG',
+    'MOH-NCD-TREASU -RE-26': 'Treasury', 'MOH-TB-TREASURE': 'Treasury',
+    'MOH-HIV-TREASURE': 'Treasury', 'MOH-HIV-TREASURE- RE-26': 'Treasury',
+    'MOH-Yellow': 'Treasury', 'MOH-YELLOWWFVAC': 'Treasury',
+    'MOH-MOF-OTHER': 'Treasury',
+    'Ministry of Finance': 'Treasury', 'MOF': 'Treasury', 'MOF -MH': 'Treasury',
+    'MOF-HP': 'Treasury', 'MOF-MAL': 'Treasury', 'MOF-ME': 'Treasury',
+    'MOF-ME-23': 'Treasury', 'MOF-ME- 23-001-011': 'Treasury', 'MOF-MH': 'Treasury',
+    'MOF-MH-23': 'Treasury', 'MOF-MH-24': 'Treasury', 'MOF-NUT': 'Treasury',
+    'MOF-NUT-23': 'Treasury', 'MOF-OTH': 'Treasury', 'MOF-OTH-23-001-011': 'Treasury',
+    'Treasury': 'Treasury', 'TREASURY': 'Treasury', 'Unspecified': 'Treasury',
+    'rdf': 'RDF', 'RDF': 'RDF', 'RDF-Local': 'RDF', 'void RDF': 'RDF',
+    'SDG': 'SDG', 'SDG (Blood Bank)': 'SDG', 'SDG -TB': 'SDG', 'SDG/ME': 'SDG',
+    'SDG-BB-24-0001-011': 'SDG', 'SDG-FH': 'SDG', 'SDG-FH-23': 'SDG',
+    'SDG-FH-23-001-011': 'SDG', 'SDG-HEP-23': 'SDG', 'SDG-LAB': 'SDG',
+    'SDG-LAB-23-001-011': 'SDG', 'SDG-Local': 'SDG', 'SDG-LSB': 'SDG',
+    'SDG-MAL-23': 'SDG', 'SDG-ME': 'SDG', 'SDG-ME-23': 'SDG',
+    'SDG-ME-23-001-011': 'SDG', 'SDG-MH': 'SDG', 'SDG-MH-23': 'SDG',
+    'SDG-MH-23-001-011': 'SDG', 'SDG-MH-24': 'SDG', 'SDG-NUT': 'SDG',
+    'SDG-TB-23': 'SDG',
+    'WB': 'WB',
+}
+BUDGET_CANONICALS = ['GF', 'SDG', 'Treasury', 'RDF', 'WB']
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -1220,10 +1255,16 @@ def reports():
         else_=PurchaseOrder.total_po_amount
     )
 
-    budget_data = db.session.query(
+    raw_budget = db.session.query(
         BudgetSource.name, func.count(PurchaseOrder.id), func.sum(usd_amt)
     ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
     ).group_by(BudgetSource.name).all()
+    budget_agg = {}
+    for name, cnt, amt in raw_budget:
+        grp = CANONICAL_BUDGET.get(name, name or 'Unspecified')
+        c, a = budget_agg.get(grp, (0, 0))
+        budget_agg[grp] = (c + cnt, (a or 0) + (amt or 0))
+    budget_data = [(g, budget_agg[g][0], budget_agg[g][1]) for g in BUDGET_CANONICALS if g in budget_agg]
 
     supplier_data = db.session.query(
         Supplier.name, func.count(PurchaseOrder.id)
@@ -1402,13 +1443,17 @@ def reports():
     source_year_data = {}
     source_year_years = set()
     for name, y, cnt, amt in raw_source_year:
-        key = name or 'Unspecified'
-        source_year_data.setdefault(key, {})[y] = {'cnt': cnt, 'amt': amt or 0}
+        grp = CANONICAL_BUDGET.get(name, name or 'Unspecified')
+        if grp not in BUDGET_CANONICALS:
+            continue
+        source_year_data.setdefault(grp, {})[y] = {'cnt': cnt, 'amt': amt or 0}
         source_year_years.add(y)
-    source_year_names = sorted(source_year_data)
+    source_year_names = BUDGET_CANONICALS
     source_year_years = sorted(source_year_years)
     source_year_totals = {}
     for name in source_year_names:
+        if name not in source_year_data:
+            continue
         tc = sum(source_year_data[name][y]['cnt'] for y in source_year_data[name])
         ta = sum(source_year_data[name][y]['amt'] for y in source_year_data[name])
         source_year_totals[name] = {'cnt': tc, 'amt': ta}
@@ -2205,13 +2250,19 @@ def export_reports():
             w.writerow([y, cnt, amt if amt else 0, itm])
 
     elif section == 'budget':
-        data = db.session.query(
+        raw = db.session.query(
             BudgetSource.name, func.count(PurchaseOrder.id), func.sum(usd_amt_ex)
         ).join(BudgetSource, PurchaseOrder.budget_source_id == BudgetSource.id, isouter=True
         ).group_by(BudgetSource.name).all()
+        agg = {}
+        for name, cnt, amt in raw:
+            grp = CANONICAL_BUDGET.get(name, name or 'Unspecified')
+            c, a = agg.get(grp, (0, 0))
+            agg[grp] = (c + cnt, (a or 0) + (amt or 0))
         w.writerow(['Budget Source', 'PO Count', 'Total Amount (USD)'])
-        for name, cnt, amt in data:
-            w.writerow([name or 'Unspecified', cnt, amt if amt else 0])
+        for g in BUDGET_CANONICALS:
+            if g in agg:
+                w.writerow([g, agg[g][0], agg[g][1]])
 
     elif section == 'currency':
         data = db.session.query(
@@ -2240,8 +2291,16 @@ def export_reports():
         ).filter(PurchaseOrder.budget_year.isnot(None)
         ).group_by(BudgetSource.name, PurchaseOrder.budget_year
         ).order_by(BudgetSource.name, PurchaseOrder.budget_year).all()
+        agg = {}
+        for name, y, cnt, amt in data:
+            grp = CANONICAL_BUDGET.get(name, name or 'Unspecified')
+            if grp not in BUDGET_CANONICALS:
+                continue
+            agg.setdefault(grp, {}).setdefault(y, {'cnt': 0, 'amt': 0})
+            agg[grp][y]['cnt'] += cnt
+            agg[grp][y]['amt'] += (amt or 0)
         years = sorted(set(r[1] for r in data))
-        sources = sorted(set(r[0] or 'Unspecified' for r in data))
+        sources = [g for g in BUDGET_CANONICALS if g in agg]
         headers = ['Budget Source']
         for y in years:
             headers += [f'{y} PO #', f'{y} Amount (USD)']
@@ -2249,16 +2308,15 @@ def export_reports():
         w.writerow(headers)
         totals = {}
         for s in sources:
-            tc = sum(r[2] for r in data if (r[0] or 'Unspecified') == s)
-            ta = sum((r[3] or 0) for r in data if (r[0] or 'Unspecified') == s)
+            tc = sum(agg[s][y]['cnt'] for y in agg[s])
+            ta = sum(agg[s][y]['amt'] for y in agg[s])
             totals[s] = (tc, ta)
         for s in sources:
             row = [s]
             for y in years:
-                found = [r for r in data if (r[0] or 'Unspecified') == s and r[1] == y]
-                if found:
-                    r = found[0]
-                    row += [r[2], f"{r[3]:,.2f}" if r[3] else '0.00']
+                cell = agg[s].get(y)
+                if cell:
+                    row += [cell['cnt'], f"{cell['amt']:,.2f}"]
                 else:
                     row += ['', '']
             row += [totals[s][0], f"{totals[s][1]:,.2f}"]
