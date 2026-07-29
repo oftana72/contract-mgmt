@@ -149,6 +149,14 @@ class PurchaseOrder(db.Model):
         delta = (date.today() - lc.opened_date).days
         return delta
 
+    @property
+    def pg_submit_days(self):
+        pg = self.performance_guarantees.first()
+        if not pg or not pg.requested_date or not pg.received_date:
+            return None
+        delta = (pg.received_date - pg.requested_date).days
+        return delta
+
 class LineItem(db.Model):
     __tablename__ = 'line_items'
     id = db.Column(Integer, primary_key=True)
