@@ -60,6 +60,24 @@
                 </div>
             {% endfor %}
         {% endwith %}
+        {% if pg_alerts or lc_alerts %}
+        <div class="alert alert-danger alert-dismissible fade show">
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            {% if pg_alerts %}
+            <strong>Performance Guarantee Expiry (≤60 days):</strong>
+            {% for id, po, d in pg_alerts %}
+            <a href="{{ url_for('po_detail', po_id=id) }}" class="alert-link">{{ po }}</a>{% if d <= 0 %} Expired{% else %}{{ d }} days{% endif %}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+            {% endif %}
+            {% if pg_alerts and lc_alerts %}<br>{% endif %}
+            {% if lc_alerts %}
+            <strong>LC Expiry (≤21 days):</strong>
+            {% for id, po, d in lc_alerts %}
+            <a href="{{ url_for('po_detail', po_id=id) }}" class="alert-link">{{ po }}</a>{% if d <= 0 %} Expired{% else %}{{ d }} days{% endif %}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </div>
 

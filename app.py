@@ -279,7 +279,7 @@ class AuditLog(db.Model):
     old_value = db.Column(Text)
     new_value = db.Column(Text)
     changed_by = db.Column(String(80))
-    changed_at = db.Column(DateTime, default=datetime.now)
+    changed_at = db.Column(db.DateTime, default=datetime.now)
 
 class BIOfficer(db.Model):
     __tablename__ = 'bi_officers'
@@ -685,6 +685,32 @@ def log_audit(table_name, record_id, field_name, old_value, new_value, changed_b
         db.session.add(a)
     except:
         pass
+
+@app.context_processor
+def inject_alerts():
+    pg_alerts = []
+    lc_alerts = []
+    try:
+        if current_user.is_authenticated:
+            today = date.today()
+            soon = PurchaseOrder.query.filter(
+                PurchaseOrder.pg_expiry_date.isnot(None),
+                db.or_(PurchaseOrder.pg_status.is_(None), ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated']))
+            ).all()
+            for po in soon:
+                d = (po.pg_expiry_date - today).days
+                if d <= 60:
+                    pg_alerts.append((po.id, po.po_number, d))
+            lc_recs = LetterOfCredit.query.filter(LetterOfCredit.expiry_date.isnot(None)).all()
+            for lc in lc_recs:
+                d = (lc.expiry_date - today).days
+                if d <= 21:
+                    po = PurchaseOrder.query.get(lc.po_id)
+                    if po:
+                        lc_alerts.append((po.id, po.po_number, d))
+    except:
+        pass
+    return dict(pg_alerts=pg_alerts, lc_alerts=lc_alerts)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
