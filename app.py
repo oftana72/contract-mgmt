@@ -712,7 +712,7 @@ def inject_alerts():
                 d = (lc.expiry_date - today).days
                 if 0 < d <= 21:
                     po = PurchaseOrder.query.get(lc.po_id)
-                    if po:
+                    if po and po.status_id not in exclude_ids:
                         lc_alerts.append((po.id, po.po_number, d))
     except:
         pass
