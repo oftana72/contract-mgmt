@@ -699,12 +699,12 @@ def inject_alerts():
             ).all()
             for po in soon:
                 d = (po.pg_expiry_date - today).days
-                if d <= 60:
+                if 0 < d <= 60:
                     pg_alerts.append((po.id, po.po_number, d))
             lc_recs = LetterOfCredit.query.filter(LetterOfCredit.expiry_date.isnot(None)).all()
             for lc in lc_recs:
                 d = (lc.expiry_date - today).days
-                if d <= 21:
+                if 0 < d <= 21:
                     po = PurchaseOrder.query.get(lc.po_id)
                     if po:
                         lc_alerts.append((po.id, po.po_number, d))
