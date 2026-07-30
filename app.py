@@ -693,10 +693,16 @@ def inject_alerts():
     try:
         if current_user.is_authenticated:
             today = date.today()
-            soon = PurchaseOrder.query.filter(
+            exclude_statuses = {'Fully Delivered', 'Cleared to Warehouse', 'Confiscated', 'Released',
+                                'Performed & Closed', 'Delivered', 'Cancelled & Replaced by Other PO'}
+            exclude_ids = [s.id for s in POStatus.query.filter(POStatus.name.in_(exclude_statuses)).all()]
+            filters = [
                 PurchaseOrder.pg_expiry_date.isnot(None),
                 db.or_(PurchaseOrder.pg_status.is_(None), ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated']))
-            ).all()
+            ]
+            if exclude_ids:
+                filters.append(~PurchaseOrder.status_id.in_(exclude_ids))
+            soon = PurchaseOrder.query.filter(*filters).all()
             for po in soon:
                 d = (po.pg_expiry_date - today).days
                 if 0 < d <= 60:
