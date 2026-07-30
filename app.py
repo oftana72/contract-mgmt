@@ -694,7 +694,8 @@ def inject_alerts():
         if current_user.is_authenticated:
             today = date.today()
             exclude_statuses = {'Fully Delivered', 'Cleared to Warehouse', 'Confiscated', 'Released',
-                                'Performed & Closed', 'Delivered', 'Cancelled & Replaced by Other PO'}
+                                'Performed & Closed', 'Delivered', 'Cancelled & Replaced by Other PO',
+                                'Cancelled', 'Replaced by Other PO'}
             exclude_ids = [s.id for s in POStatus.query.filter(POStatus.name.in_(exclude_statuses)).all()]
             filters = [
                 PurchaseOrder.pg_expiry_date.isnot(None),
