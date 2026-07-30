@@ -1797,10 +1797,13 @@ def api_update_pg_fields(po_id):
     po = PurchaseOrder.query.get_or_404(po_id)
     data = request.get_json(force=True)
     changed = 0
+    info = {}
     for field in ['pg_expiry_date', 'pg_status', 'pg_release_date', 'pg_received_by', 'pg_confiscation_reason']:
         if field in data:
-            val = parse_date(data[field]) if field.endswith('_date') else (data[field].strip() or None)
+            raw = data[field]
+            val = parse_date(raw) if field.endswith('_date') else (str(raw).strip() or None)
             old = getattr(po, field)
+            info[field] = {'raw': raw, 'val': str(val) if val else None, 'old': str(old) if old else None}
             setattr(po, field, val)
             if old != val:
                 log_audit('purchase_orders', po_id, field, old, val)
@@ -1812,7 +1815,7 @@ def api_update_pg_fields(po_id):
         elif new_status not in ('Released', 'Confiscated'):
             po.pg_days_left_frozen = None
     db.session.commit()
-    return jsonify({'ok': True, 'changed': changed})
+    return jsonify({'ok': True, 'changed': changed, 'info': info})
 
 @app.route('/api/suppliers')
 @login_required
