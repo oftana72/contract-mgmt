@@ -701,7 +701,7 @@ def inject_alerts():
                 db.or_(PurchaseOrder.pg_status.is_(None), ~PurchaseOrder.pg_status.in_(['Released', 'Confiscated']))
             ]
             if exclude_ids:
-                filters.append(~PurchaseOrder.status_id.in_(exclude_ids))
+                filters.append(db.or_(PurchaseOrder.status_id.is_(None), ~PurchaseOrder.status_id.in_(exclude_ids)))
             soon = PurchaseOrder.query.filter(*filters).all()
             for po in soon:
                 d = (po.pg_expiry_date - today).days
