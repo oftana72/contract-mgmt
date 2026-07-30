@@ -1794,31 +1794,37 @@ def api_delete_shipment_detail(po_id, sd_id):
 @app.route('/api/pos/<int:po_id>/pg-fields', methods=['POST'])
 @login_required
 def api_update_pg_fields(po_id):
-    po = PurchaseOrder.query.get_or_404(po_id)
-    data = request.get_json(force=True)
-    changed = 0
-    for field in ['pg_expiry_date', 'pg_status', 'pg_release_date', 'pg_received_by', 'pg_confiscation_reason']:
-        if field in data:
-            raw = data[field]
-            if raw is None:
-                val = None
-            elif field.endswith('_date'):
-                val = parse_date(raw)
-            else:
-                val = str(raw).strip() or None
-            old = getattr(po, field)
-            if old != val:
-                setattr(po, field, val)
-                log_audit('purchase_orders', po_id, field, old, val)
-                changed += 1
-    if 'pg_status' in data:
-        ns = data.get('pg_status')
-        if ns and ns.strip() in ('Released', 'Confiscated') and po.pg_expiry_date:
-            po.pg_days_left_frozen = (po.pg_expiry_date - date.today()).days
-        elif ns is not None:
-            po.pg_days_left_frozen = None
-    db.session.commit()
-    return jsonify({'ok': True, 'changed': changed})
+    try:
+        po = PurchaseOrder.query.get_or_404(po_id)
+        data = request.get_json(force=True)
+        changed = 0
+        debug = {}
+        for field in ['pg_expiry_date', 'pg_status', 'pg_release_date', 'pg_received_by', 'pg_confiscation_reason']:
+            if field in data:
+                raw = data[field]
+                if raw is None:
+                    val = None
+                elif field.endswith('_date'):
+                    val = parse_date(raw)
+                else:
+                    val = str(raw).strip() or None
+                old = getattr(po, field)
+                debug[field] = f'old={old!r} val={val!r} eq={old == val}'
+                if old != val:
+                    setattr(po, field, val)
+                    log_audit('purchase_orders', po_id, field, old, val)
+                    changed += 1
+        if 'pg_status' in data:
+            ns = data.get('pg_status')
+            if ns and ns.strip() in ('Released', 'Confiscated') and po.pg_expiry_date:
+                po.pg_days_left_frozen = (po.pg_expiry_date - date.today()).days
+            elif ns is not None:
+                po.pg_days_left_frozen = None
+        db.session.commit()
+        return jsonify({'ok': True, 'changed': changed, 'debug': debug})
+    except Exception as e:
+        import traceback
+        return jsonify({'ok': False, 'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 @app.route('/api/suppliers')
 @login_required
