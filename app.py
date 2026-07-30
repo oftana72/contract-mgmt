@@ -1791,6 +1791,29 @@ def api_delete_shipment_detail(po_id, sd_id):
     db.session.commit()
     return jsonify({'ok': True})
 
+@app.route('/api/pos/<int:po_id>/pg-fields', methods=['POST'])
+@login_required
+def api_update_pg_fields(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    data = request.get_json(force=True)
+    changed = 0
+    for field in ['pg_expiry_date', 'pg_status', 'pg_release_date', 'pg_received_by', 'pg_confiscation_reason']:
+        if field in data:
+            val = parse_date(data[field]) if field.endswith('_date') else (data[field].strip() or None)
+            old = getattr(po, field)
+            setattr(po, field, val)
+            if old != val:
+                log_audit('purchase_orders', po_id, field, old, val)
+                changed += 1
+    if 'pg_status' in data:
+        new_status = data.get('pg_status', '').strip() or None
+        if new_status in ('Released', 'Confiscated') and po.pg_expiry_date:
+            po.pg_days_left_frozen = (po.pg_expiry_date - date.today()).days
+        elif new_status not in ('Released', 'Confiscated'):
+            po.pg_days_left_frozen = None
+    db.session.commit()
+    return jsonify({'ok': True, 'changed': changed})
+
 @app.route('/api/suppliers')
 @login_required
 def api_suppliers():
