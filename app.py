@@ -1533,6 +1533,41 @@ def reports():
             else: entry['bins']['>180 days'] += 1
         ship_data[y] = entry
 
+    # KPI: Port Clearance Lead Time = Cleared to WH - Port Arrival (days) by budget year (Sea & Air)
+    clearance_raw = db.session.query(
+        PurchaseOrder.budget_year,
+        ItemShipmentDetail.cleared_to_wh_date,
+        ItemShipmentDetail.port_arrival_date,
+        ItemShipmentDetail.mode
+    ).join(PurchaseOrder, ItemShipmentDetail.po_id == PurchaseOrder.id
+    ).filter(
+        ItemShipmentDetail.cleared_to_wh_date.isnot(None),
+        ItemShipmentDetail.port_arrival_date.isnot(None),
+        PurchaseOrder.budget_year.isnot(None)
+    ).all()
+    clearance_by_year = {}
+    for y, cleared, arrival, mode in clearance_raw:
+        if cleared and arrival:
+            days = (cleared - arrival).days
+            clearance_by_year.setdefault(y, []).append(days)
+    clearance_data = {}
+    for y in sorted(clearance_by_year):
+        days = clearance_by_year[y]
+        entry = {
+            'count': len(days),
+            'avg': sum(days) / len(days),
+            'min': min(days),
+            'max': max(days),
+            'bins': {'0-7 days': 0, '8-14 days': 0, '15-30 days': 0, '31-60 days': 0, '>60 days': 0}
+        }
+        for d in days:
+            if d <= 7: entry['bins']['0-7 days'] += 1
+            elif d <= 14: entry['bins']['8-14 days'] += 1
+            elif d <= 30: entry['bins']['15-30 days'] += 1
+            elif d <= 60: entry['bins']['31-60 days'] += 1
+            else: entry['bins']['>60 days'] += 1
+        clearance_data[y] = entry
+
     closure_data = db.session.query(
         Shipment.order_closure,
         func.count(Shipment.id)
@@ -1577,7 +1612,8 @@ def reports():
                           pg_lead_data=pg_lead_data, pg_lead_years=sorted(pg_lead_data),
                           dwell_data=dwell_data, dwell_years=sorted(dwell_data),
                           lc_open_data=lc_open_data, lc_open_years=sorted(lc_open_data),
-                          ship_data=ship_data, ship_years=sorted(ship_data))
+                          ship_data=ship_data, ship_years=sorted(ship_data),
+                          clearance_data=clearance_data, clearance_years=sorted(clearance_data))
 
 @app.route('/api/pos')
 @login_required
@@ -2531,6 +2567,24 @@ def export_reports():
             seen.add(key)
             days = (shipped - opened).days
             w.writerow([y, pn, opened.isoformat(), shipped.isoformat(), days])
+
+    elif section == 'port_clearance':
+        data = db.session.query(
+            PurchaseOrder.budget_year,
+            PurchaseOrder.po_number,
+            ItemShipmentDetail.mode,
+            ItemShipmentDetail.cleared_to_wh_date,
+            ItemShipmentDetail.port_arrival_date
+        ).join(PurchaseOrder, ItemShipmentDetail.po_id == PurchaseOrder.id
+        ).filter(
+            ItemShipmentDetail.cleared_to_wh_date.isnot(None),
+            ItemShipmentDetail.port_arrival_date.isnot(None),
+            PurchaseOrder.budget_year.isnot(None)
+        ).all()
+        w.writerow(['Budget Year', 'PO Number', 'Mode', 'Port Arrival', 'Cleared to WH', 'Days'])
+        for y, pn, mode, cleared, arrival in data:
+            days = (cleared - arrival).days
+            w.writerow([y, pn, mode or '', arrival.isoformat(), cleared.isoformat(), days])
 
     resp = app.response_class(si.getvalue(), mimetype='text/csv')
     resp.headers['Content-Disposition'] = 'attachment; filename=report_{}.csv'.format(section)
