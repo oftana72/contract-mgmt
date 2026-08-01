@@ -492,6 +492,10 @@ with app.app_context():
 
         # ---- Backfill 'Awaiting LC opening' status for existing POs ----
         try:
+            db.session.execute(db.text("""
+                CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)
+            """))
+            db.session.commit()
             await_lc_done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='awaiting_lc_v1'")).scalar()
             if not await_lc_done or await_lc_done != '1':
                 backfilled = 0
@@ -1131,6 +1135,32 @@ def admin_fix_budget_sources():
         flash(f'Budget sources normalized: {changes} POs updated', 'success')
     except Exception as e:
         app.logger.error(f'FIX BUDGET SOURCES ERROR: {e}\n{traceback.format_exc()}')
+        flash(f'Error: {e}', 'danger')
+    return redirect(url_for('index'))
+
+@app.route('/admin/backfill-awaiting-lc', methods=['GET'])
+@login_required
+def admin_backfill_awaiting_lc():
+    if not current_user.is_admin:
+        flash('Admin access required', 'danger')
+        return redirect(url_for('index'))
+    try:
+        st = get_or_create_po_status(AWAITING_LC_STATUS)
+        db.session.commit()
+        backfilled = 0
+        for po in PurchaseOrder.query.all():
+            if po_awaiting_lc(po):
+                if po.status_id != st.id:
+                    po.status_id = st.id
+                    backfilled += 1
+        db.session.commit()
+        flash(f'Backfilled {backfilled} POs to "{AWAITING_LC_STATUS}"', 'success')
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        app.logger.error(f'BACKFILL AWAITING LC ERROR: {e}\n{traceback.format_exc()}')
         flash(f'Error: {e}', 'danger')
     return redirect(url_for('index'))
 
