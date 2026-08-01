@@ -490,6 +490,29 @@ with app.app_context():
             print('  Startup lock not acquired (another worker running it)')
             return
 
+        # ---- Backfill 'Awaiting LC opening' status for existing POs ----
+        try:
+            await_lc_done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='awaiting_lc_v1'")).scalar()
+            if not await_lc_done or await_lc_done != '1':
+                backfilled = 0
+                matching = PurchaseOrder.query.all()
+                for po in matching:
+                    if po_awaiting_lc(po):
+                        st = get_or_create_po_status(AWAITING_LC_STATUS)
+                        if po.status_id != st.id:
+                            po.status_id = st.id
+                            backfilled += 1
+                db.session.commit()
+                db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('awaiting_lc_v1', '1') ON CONFLICT (key) DO UPDATE SET value = '1'"))
+                db.session.commit()
+                print(f'  Awaiting LC opening backfill: {backfilled} POs updated')
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            print(f'  Awaiting LC opening backfill error: {e}')
+
         try:
             started = db.session.query(db.text("SELECT 1 FROM information_schema.tables WHERE table_name='_meta'")).scalar()
             if started:
@@ -504,29 +527,6 @@ with app.app_context():
             db.session.commit()
             db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done_v4', '0') ON CONFLICT (key) DO UPDATE SET value = '0'"))
             db.session.commit()
-
-            # ---- Backfill 'Awaiting LC opening' status for existing POs ----
-            try:
-                await_lc_done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='awaiting_lc_v1'")).scalar()
-                if not await_lc_done or await_lc_done != '1':
-                    backfilled = 0
-                    matching = PurchaseOrder.query.all()
-                    for po in matching:
-                        if po_awaiting_lc(po):
-                            st = get_or_create_po_status(AWAITING_LC_STATUS)
-                            if po.status_id != st.id:
-                                po.status_id = st.id
-                                backfilled += 1
-                    db.session.commit()
-                    db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('awaiting_lc_v1', '1') ON CONFLICT (key) DO UPDATE SET value = '1'"))
-                    db.session.commit()
-                    print(f'  Awaiting LC opening backfill: {backfilled} POs updated')
-            except Exception as e:
-                try:
-                    db.session.rollback()
-                except Exception:
-                    pass
-                print(f'  Awaiting LC opening backfill error: {e}')
 
             # ---- Import CSVs (skip dups by po_number) ----
 
