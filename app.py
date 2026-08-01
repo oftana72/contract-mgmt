@@ -296,6 +296,32 @@ class POStatus(db.Model):
     id = db.Column(Integer, primary_key=True)
     name = db.Column(String(50), nullable=False, unique=True)
 
+AWAITING_LC_STATUS = 'Awaiting LC opening'
+
+def get_or_create_po_status(name):
+    if not name:
+        return None
+    st = POStatus.query.filter_by(name=name).first()
+    if not st:
+        st = POStatus(name=name)
+        db.session.add(st)
+        db.session.flush()
+    return st
+
+def po_awaiting_lc(po):
+    pg_received = po.pg_expiry_date is not None or any(
+        pg.received_date for pg in po.performance_guarantees.all()
+    )
+    if not pg_received:
+        return False
+    lc = po.letter_of_credits.first()
+    return not (lc and lc.opened_date)
+
+def apply_awaiting_lc_status(po):
+    if po_awaiting_lc(po):
+        st = get_or_create_po_status(AWAITING_LC_STATUS)
+        po.status_id = st.id
+
 def parse_date(val):
     if not val or str(val).strip() in ('', 'ENTER DATE', 'NM', '#REF!'):
         return None
@@ -478,6 +504,29 @@ with app.app_context():
             db.session.commit()
             db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('startup_done_v4', '0') ON CONFLICT (key) DO UPDATE SET value = '0'"))
             db.session.commit()
+
+            # ---- Backfill 'Awaiting LC opening' status for existing POs ----
+            try:
+                await_lc_done = db.session.execute(db.text("SELECT value FROM _meta WHERE key='awaiting_lc_v1'")).scalar()
+                if not await_lc_done or await_lc_done != '1':
+                    backfilled = 0
+                    matching = PurchaseOrder.query.all()
+                    for po in matching:
+                        if po_awaiting_lc(po):
+                            st = get_or_create_po_status(AWAITING_LC_STATUS)
+                            if po.status_id != st.id:
+                                po.status_id = st.id
+                                backfilled += 1
+                    db.session.commit()
+                    db.session.execute(db.text("INSERT INTO _meta (key, value) VALUES ('awaiting_lc_v1', '1') ON CONFLICT (key) DO UPDATE SET value = '1'"))
+                    db.session.commit()
+                    print(f'  Awaiting LC opening backfill: {backfilled} POs updated')
+            except Exception as e:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                print(f'  Awaiting LC opening backfill error: {e}')
 
             # ---- Import CSVs (skip dups by po_number) ----
 
@@ -1222,6 +1271,8 @@ def po_edit(po_id):
             lc.opened_date = parse_date(request.form.get('lc_opened_date'))
             lc.expiry_date = parse_date(request.form.get('lc_expiry_date'))
 
+        apply_awaiting_lc_status(po)
+
         # Handle line items
         delete_items = request.form.getlist('delete_item')
         for item_id in delete_items:
@@ -1779,6 +1830,8 @@ def po_create():
             )
             db.session.add(sh)
 
+        apply_awaiting_lc_status(po)
+
         db.session.commit()
         flash(f'Contract {po_number} created successfully!', 'success')
         return redirect(url_for('po_detail', po_id=po.id))
@@ -1931,6 +1984,7 @@ def api_update_pg_fields(po_id):
             po.pg_days_left_frozen = (po.pg_expiry_date - date.today()).days
         elif ns is not None:
             po.pg_days_left_frozen = None
+    apply_awaiting_lc_status(po)
     db.session.commit()
     return jsonify({'ok': True, 'changed': changed})
 
