@@ -12,6 +12,9 @@
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='status') }}">PO Status by Budget Year</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('export_reports', section='budget_source_year') }}">Budget Source by Budget Year</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('export_reports', section='lc_open') }}">LC Opening Lead Time</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('export_reports', section='supplier_lead') }}">Supplier Lead Time</a></li>
         </ul>
     </div>
     <a href="{{ url_for('export_pos') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-download"></i> Export All POs</a>
@@ -259,6 +262,99 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-bank"></i> LC Opening Lead Time (LC Opened - PO Transferred)</div>
+            <div class="card-body p-0">
+                {% if lc_open_data %}
+                <div class="table-responsive">
+                    <table class="table mb-0 table-sm">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Budget Year</th>
+                                <th rowspan="2">Records</th>
+                                <th rowspan="2">Avg<br><small>Days</small></th>
+                                <th rowspan="2">Min</th>
+                                <th rowspan="2">Max</th>
+                                <th colspan="5" class="text-center">Distribution</th>
+                            </tr>
+                            <tr>
+                                {% for r in ['0-30d','31-60d','61-90d','91-180d','>180d'] %}
+                                <th class="text-end">{{ r }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for y in lc_open_years %}
+                            {% set d = lc_open_data[y] %}
+                            <tr>
+                                <td><strong>{{ y }}</strong></td>
+                                <td>{{ d.count }}</td>
+                                <td>{{ "{:.0f}".format(d.avg) }}</td>
+                                <td>{{ d.min }}</td>
+                                <td>{{ d.max }}</td>
+                                {% for r in ['0-30 days','31-60 days','61-90 days','91-180 days','>180 days'] %}
+                                <td class="text-end">{{ d.bins.get(r, 0) }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body"><p class="text-muted mb-0">No data available</p></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-truck"></i> Supplier Lead Time (Shipped - LC Opened)</div>
+            <div class="card-body p-0">
+                {% if ship_data %}
+                <div class="table-responsive">
+                    <table class="table mb-0 table-sm">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Budget Year</th>
+                                <th rowspan="2">Records</th>
+                                <th rowspan="2">Avg<br><small>Days</small></th>
+                                <th rowspan="2">Min</th>
+                                <th rowspan="2">Max</th>
+                                <th colspan="5" class="text-center">Distribution</th>
+                            </tr>
+                            <tr>
+                                {% for r in ['0-30d','31-60d','61-90d','91-180d','>180d'] %}
+                                <th class="text-end">{{ r }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for y in ship_years %}
+                            {% set d = ship_data[y] %}
+                            <tr>
+                                <td><strong>{{ y }}</strong></td>
+                                <td>{{ d.count }}</td>
+                                <td>{{ "{:.0f}".format(d.avg) }}</td>
+                                <td>{{ d.min }}</td>
+                                <td>{{ d.max }}</td>
+                                {% for r in ['0-30 days','31-60 days','61-90 days','91-180 days','>180 days'] %}
+                                <td class="text-end">{{ d.bins.get(r, 0) }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="card-body"><p class="text-muted mb-0">No data available</p></div>
+                {% endif %}
             </div>
         </div>
     </div>

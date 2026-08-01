@@ -1458,6 +1458,81 @@ def reports():
             else: entry['bins']['>180 days'] += 1
         dwell_data[y] = entry
 
+    # KPI: LC Opening Lead Time = LC Opened - PO Transferred (days) by budget year
+    lc_open_raw = db.session.query(
+        PurchaseOrder.budget_year,
+        LetterOfCredit.opened_date,
+        PurchaseOrder.po_transferred_date
+    ).join(LetterOfCredit, PurchaseOrder.id == LetterOfCredit.po_id
+    ).filter(
+        LetterOfCredit.opened_date.isnot(None),
+        PurchaseOrder.po_transferred_date.isnot(None),
+        PurchaseOrder.budget_year.isnot(None)
+    ).all()
+    lc_open_by_year = {}
+    for y, opened, trans in lc_open_raw:
+        if opened and trans:
+            days = (opened - trans).days
+            lc_open_by_year.setdefault(y, []).append(days)
+    lc_open_data = {}
+    for y in sorted(lc_open_by_year):
+        days = lc_open_by_year[y]
+        entry = {
+            'count': len(days),
+            'avg': sum(days) / len(days),
+            'min': min(days),
+            'max': max(days),
+            'bins': {'0-30 days': 0, '31-60 days': 0, '61-90 days': 0, '91-180 days': 0, '>180 days': 0}
+        }
+        for d in days:
+            if d <= 30: entry['bins']['0-30 days'] += 1
+            elif d <= 60: entry['bins']['31-60 days'] += 1
+            elif d <= 90: entry['bins']['61-90 days'] += 1
+            elif d <= 180: entry['bins']['91-180 days'] += 1
+            else: entry['bins']['>180 days'] += 1
+        lc_open_data[y] = entry
+
+    # KPI: Supplier Lead Time = Shipped (BoB/AWB) - LC Opened (days) by budget year
+    ship_raw = db.session.query(
+        PurchaseOrder.budget_year,
+        LetterOfCredit.opened_date,
+        ItemShipmentDetail.bill_on_board_date,
+        ItemShipmentDetail.airway_bill_date
+    ).join(LetterOfCredit, PurchaseOrder.id == LetterOfCredit.po_id
+    ).join(ItemShipmentDetail, PurchaseOrder.id == ItemShipmentDetail.po_id, isouter=True
+    ).filter(
+        LetterOfCredit.opened_date.isnot(None),
+        PurchaseOrder.budget_year.isnot(None)
+    ).all()
+    ship_by_year = {}
+    seen = set()
+    for y, opened, bob, awb in ship_raw:
+        shipped = bob or awb
+        if opened and shipped:
+            key = (opened, shipped, y)
+            if key in seen:
+                continue
+            seen.add(key)
+            days = (shipped - opened).days
+            ship_by_year.setdefault(y, []).append(days)
+    ship_data = {}
+    for y in sorted(ship_by_year):
+        days = ship_by_year[y]
+        entry = {
+            'count': len(days),
+            'avg': sum(days) / len(days),
+            'min': min(days),
+            'max': max(days),
+            'bins': {'0-30 days': 0, '31-60 days': 0, '61-90 days': 0, '91-180 days': 0, '>180 days': 0}
+        }
+        for d in days:
+            if d <= 30: entry['bins']['0-30 days'] += 1
+            elif d <= 60: entry['bins']['31-60 days'] += 1
+            elif d <= 90: entry['bins']['61-90 days'] += 1
+            elif d <= 180: entry['bins']['91-180 days'] += 1
+            else: entry['bins']['>180 days'] += 1
+        ship_data[y] = entry
+
     closure_data = db.session.query(
         Shipment.order_closure,
         func.count(Shipment.id)
@@ -1500,7 +1575,9 @@ def reports():
                           source_year_data=source_year_data, source_year_names=source_year_names,
                           source_year_years=source_year_years, source_year_totals=source_year_totals,
                           pg_lead_data=pg_lead_data, pg_lead_years=sorted(pg_lead_data),
-                          dwell_data=dwell_data, dwell_years=sorted(dwell_data))
+                          dwell_data=dwell_data, dwell_years=sorted(dwell_data),
+                          lc_open_data=lc_open_data, lc_open_years=sorted(lc_open_data),
+                          ship_data=ship_data, ship_years=sorted(ship_data))
 
 @app.route('/api/pos')
 @login_required
@@ -2410,6 +2487,50 @@ def export_reports():
             status_sum = sum(row_data[1:])
             row_data.append(total - status_sum)
             w.writerow(row_data)
+
+    elif section == 'lc_open':
+        data = db.session.query(
+            PurchaseOrder.budget_year,
+            LetterOfCredit.opened_date,
+            PurchaseOrder.po_transferred_date
+        ).join(LetterOfCredit, PurchaseOrder.id == LetterOfCredit.po_id
+        ).filter(
+            LetterOfCredit.opened_date.isnot(None),
+            PurchaseOrder.po_transferred_date.isnot(None),
+            PurchaseOrder.budget_year.isnot(None)
+        ).all()
+        w.writerow(['Budget Year', 'PO', 'LC Opened', 'PO Transferred', 'Days'])
+        for y, opened, trans in data:
+            days = (opened - trans).days
+            po = PurchaseOrder.query.join(LetterOfCredit, LetterOfCredit.po_id == PurchaseOrder.id).filter(
+                LetterOfCredit.opened_date == opened, PurchaseOrder.po_transferred_date == trans, PurchaseOrder.budget_year == y).first()
+            w.writerow([y, po.po_number if po else '', opened.isoformat(), trans.isoformat(), days])
+
+    elif section == 'supplier_lead':
+        data = db.session.query(
+            PurchaseOrder.budget_year,
+            PurchaseOrder.po_number,
+            LetterOfCredit.opened_date,
+            ItemShipmentDetail.bill_on_board_date,
+            ItemShipmentDetail.airway_bill_date
+        ).join(LetterOfCredit, PurchaseOrder.id == LetterOfCredit.po_id
+        ).join(ItemShipmentDetail, PurchaseOrder.id == ItemShipmentDetail.po_id, isouter=True
+        ).filter(
+            LetterOfCredit.opened_date.isnot(None),
+            PurchaseOrder.budget_year.isnot(None)
+        ).all()
+        w.writerow(['Budget Year', 'PO Number', 'LC Opened', 'Shipped', 'Days'])
+        seen = set()
+        for y, pn, opened, bob, awb in data:
+            shipped = bob or awb
+            if not shipped:
+                continue
+            key = (pn, opened, shipped)
+            if key in seen:
+                continue
+            seen.add(key)
+            days = (shipped - opened).days
+            w.writerow([y, pn, opened.isoformat(), shipped.isoformat(), days])
 
     resp = app.response_class(si.getvalue(), mimetype='text/csv')
     resp.headers['Content-Disposition'] = 'attachment; filename=report_{}.csv'.format(section)
