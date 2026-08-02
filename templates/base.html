@@ -25,7 +25,7 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('po_list') }}"><i class="bi bi-table"></i> Purchase Orders</a></li>
                     {% if current_user.is_admin or current_user.has_permission('view_reports') %}<li class="nav-item"><a class="nav-link" href="{{ url_for('reports') }}"><i class="bi bi-bar-chart"></i> Reports</a></li>{% endif %}
                     {% if current_user.is_admin or current_user.has_permission('po_create') %}<li class="nav-item"><a class="nav-link" href="{{ url_for('po_create') }}"><i class="bi bi-plus-circle"></i> New Contract</a></li>{% endif %}
-                    <li class="nav-item"><a class="nav-link" href="http://localhost:3000/" target="_blank" rel="noopener"><i class="bi bi-hdd"></i> Local</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://pharma-procurement.onrender.com/" target="_blank" rel="noopener"><i class="bi bi-hdd"></i> Procurement</a></li>
                     {% if current_user.is_admin %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="bi bi-gear"></i> Settings</a>
