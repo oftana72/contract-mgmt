@@ -298,6 +298,12 @@ class POStatus(db.Model):
 
 AWAITING_LC_STATUS = 'Awaiting LC opening'
 
+# Statuses that may be kept on a Truck-shipment PO even when LC is not yet opened.
+TRUCK_LC_EXEMPT_STATUSES = {
+    'Replaced by Other PO', 'Cancelled', 'Awaiting PG', 'Awaiting Budget',
+    'On LC Opening Process',
+}
+
 def get_or_create_po_status(name):
     if not name:
         return None
@@ -317,8 +323,14 @@ def po_awaiting_lc(po):
     lc = po.letter_of_credits.first()
     return not (lc and lc.opened_date)
 
-def apply_awaiting_lc_status(po):
+def apply_awaiting_lc_status(po, selected_status=None):
     if po_awaiting_lc(po):
+        # Keep a manually selected status on Truck-shipment POs even if LC is not
+        # opened, for statuses that don't depend on LC opening.
+        if po.mode_of_shipment and po.mode_of_shipment.strip().lower() == 'truck':
+            cur = selected_status or (po.po_status.name if po.po_status else None)
+            if cur in TRUCK_LC_EXEMPT_STATUSES:
+                return
         st = get_or_create_po_status(AWAITING_LC_STATUS)
         po.status_id = st.id
 
@@ -1301,7 +1313,7 @@ def po_edit(po_id):
             lc.opened_date = parse_date(request.form.get('lc_opened_date'))
             lc.expiry_date = parse_date(request.form.get('lc_expiry_date'))
 
-        apply_awaiting_lc_status(po)
+        apply_awaiting_lc_status(po, selected_status=new_status)
 
         # Handle line items
         delete_items = request.form.getlist('delete_item')
@@ -1860,7 +1872,7 @@ def po_create():
             )
             db.session.add(sh)
 
-        apply_awaiting_lc_status(po)
+        apply_awaiting_lc_status(po, selected_status=po_status_name)
 
         db.session.commit()
         flash(f'Contract {po_number} created successfully!', 'success')
