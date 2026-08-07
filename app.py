@@ -2316,6 +2316,23 @@ def import_missing_pos_route():
         print(f'Missing PO import error: {e}\n{tb}', file=sys.stderr)
     return '<pre>' + '\n'.join(out) + '</pre>'
 
+@app.route('/admin/import-target-rows', methods=['GET'])
+def import_target_rows_route():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        abort(403)
+    import traceback, sys
+    out = ['Starting target rows import...']
+    try:
+        from import_target_rows import import_target_rows
+        created, enriched = import_target_rows()
+        out.append(f'Created POs: {created}, Enriched: {enriched}')
+    except Exception as e:
+        tb = traceback.format_exc()
+        out.append(f'ERROR: {e}')
+        out.append(tb)
+        print(f'Target rows import error: {e}\n{tb}', file=sys.stderr)
+    return '<pre>' + '\n'.join(out) + '</pre>'
+
 @app.route('/admin/import-pg-sheet', methods=['GET'])
 def import_pg_sheet_route():
     if not current_user.is_authenticated or not current_user.is_admin:
