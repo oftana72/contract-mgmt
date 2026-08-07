@@ -315,12 +315,14 @@ def get_or_create_po_status(name):
     return st
 
 def po_awaiting_lc(po):
+    lc = po.letter_of_credits.first()
+    if lc and lc.opening_status and lc.opening_status.strip().lower() == 'no lc needed':
+        return False
     pg_received = po.pg_expiry_date is not None or any(
         pg.received_date for pg in po.performance_guarantees.all()
     )
     if not pg_received:
         return False
-    lc = po.letter_of_credits.first()
     return not (lc and lc.opened_date)
 
 def apply_awaiting_lc_status(po, selected_status=None):
