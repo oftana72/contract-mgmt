@@ -431,6 +431,29 @@ with app.app_context():
         try: db.session.rollback()
         except: pass
         print('Migration (unit column): ' + str(e))
+    # Migration: item_shipment_details carton/pallet qty (renamed 2026-07-29)
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        from sqlalchemy import text
+        inspector = sa_inspect(db.engine)
+        sd_cols = [c['name'] for c in inspector.get_columns('item_shipment_details')]
+        is_pg = 'postgresql' in str(db.engine.url)
+        if 'carton_qty' not in sd_cols:
+            if 'carton_pallet_qty' in sd_cols:
+                if is_pg:
+                    db.session.execute(text('ALTER TABLE item_shipment_details RENAME COLUMN carton_pallet_qty TO carton_qty'))
+                else:
+                    db.session.execute(text('ALTER TABLE item_shipment_details CHANGE COLUMN carton_pallet_qty carton_qty INTEGER'))
+                db.session.execute(text('ALTER TABLE item_shipment_details ADD COLUMN pallet_qty INTEGER'))
+            else:
+                db.session.execute(text('ALTER TABLE item_shipment_details ADD COLUMN carton_qty INTEGER'))
+                db.session.execute(text('ALTER TABLE item_shipment_details ADD COLUMN pallet_qty INTEGER'))
+            db.session.commit()
+            print('Migration: item_shipment_details carton_qty/pallet_qty fixed')
+    except Exception as e:
+        try: db.session.rollback()
+        except: pass
+        print('Migration (item_shipment_details carton/pallet): ' + str(e))
     try:
         from sqlalchemy import text
         is_pg = 'postgresql' in str(db.engine.url)
