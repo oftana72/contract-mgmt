@@ -1266,6 +1266,19 @@ def po_edit(po_id):
         else:
             po.shipment_officer_id = None
 
+        sh_status = request.form.get('shipment_status', '').strip()
+        sh_closure = request.form.get('order_closure', '').strip()
+        if sh_status or sh_closure:
+            sh_rec = po.shipments.first()
+            if not sh_rec:
+                sh_rec = Shipment(po_id=po.id)
+                db.session.add(sh_rec)
+                db.session.flush()
+            sh_rec.shipment_status = sh_status or None
+            sh_rec.order_closure = sh_closure or None
+            if sh_name:
+                sh_rec.shipment_officer = sh_name
+
         st_name = request.form.get('po_status', '').strip()
         old_status = po.po_status.name if po.po_status else None
         if st_name:

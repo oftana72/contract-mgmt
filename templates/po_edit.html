@@ -63,6 +63,25 @@
                                         {% for o in shipment_officers %}<option value="{{ o.name }}">{% endfor %}
                                     </datalist>
                                 </div>
+                                {% set sh = po.shipments.first() %}
+                                <div class="col-md-3">
+                                    <label class="form-label">Shipment Status</label>
+                                    <select name="shipment_status" class="form-select">
+                                        <option value="">--</option>
+                                        {% for s in ['Full Delivered', 'Fully Delivered', 'Cleared to WH', 'Awaiting Shipment', 'Not Delivering'] %}
+                                        <option {{ 'selected' if sh and sh.shipment_status == s }}>{{ s }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Order Closure</label>
+                                    <select name="order_closure" class="form-select">
+                                        <option value="">--</option>
+                                        {% for c in ['Closed', 'Closed without shipment'] %}
+                                        <option {{ 'selected' if sh and sh.order_closure == c }}>{{ c }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                                 <div class="col-md-2">
                                     <label class="form-label">PO Status</label>
                                     <select name="po_status" class="form-select">
